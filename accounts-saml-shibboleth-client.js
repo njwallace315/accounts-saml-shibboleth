@@ -2,15 +2,15 @@ if (!Accounts.saml) {
   Accounts.saml = {};
 }
 
-Accounts.saml.initiateLogin = function(options, callback, dimensions) {
+Accounts.saml.initiateLogin = function (options, callback, dimensions) {
 
   // default dimensions that worked well for facebook and google
   var popup = openCenteredPopup(
-    Meteor.absoluteUrl("_saml/authorize/"+options.provider+"/" + options.credentialToken),
+    Meteor.absoluteUrl("_saml/authorize/" + options.provider + "/" + options.credentialToken),
     (dimensions && dimensions.width) || 650,
     (dimensions && dimensions.height) || 500);
 
-  var checkPopupOpen = setInterval(function() {
+  var checkPopupOpen = setInterval(function () {
     try {
       // Fix for #328 - added a second test criteria (popup.closed === undefined)
       // to humour this Android quirk:
@@ -31,15 +31,15 @@ Accounts.saml.initiateLogin = function(options, callback, dimensions) {
   }, 100);
 };
 
-var openCenteredPopup = function(url, width, height) {
+var openCenteredPopup = function (url, width, height) {
   var screenX = typeof window.screenX !== 'undefined'
-        ? window.screenX : window.screenLeft;
+    ? window.screenX : window.screenLeft;
   var screenY = typeof window.screenY !== 'undefined'
-        ? window.screenY : window.screenTop;
+    ? window.screenY : window.screenTop;
   var outerWidth = typeof window.outerWidth !== 'undefined'
-        ? window.outerWidth : document.body.clientWidth;
+    ? window.outerWidth : document.body.clientWidth;
   var outerHeight = typeof window.outerHeight !== 'undefined'
-        ? window.outerHeight : (document.body.clientHeight - 22);
+    ? window.outerHeight : (document.body.clientHeight - 22);
   // XXX what is the 22?
 
   // Use `outerWidth - width` and `outerHeight - height` for help in
@@ -47,7 +47,7 @@ var openCenteredPopup = function(url, width, height) {
   var left = screenX + (outerWidth - width) / 2;
   var top = screenY + (outerHeight - height) / 2;
   var features = ('width=' + width + ',height=' + height +
-                  ',left=' + left + ',top=' + top + ',scrollbars=yes');
+    ',left=' + left + ',top=' + top + ',scrollbars=yes');
 
   Accounts.saml.debugLog('saml_client.js', '53', 'Open new window with url: ' + url, false);
   var newwindow = window.open(url, 'Login', features);
@@ -56,20 +56,20 @@ var openCenteredPopup = function(url, width, height) {
   return newwindow;
 };
 
-Meteor.loginWithSaml = function(options, callback) {
+Meteor.loginWithSaml = function (options, callback) {
   options = options || {};
-  var credentialToken = Random.id();
+  var credentialToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
   options.credentialToken = credentialToken;
 
-  Accounts.saml.initiateLogin(options, function(error, result){
-    if(result) {
+  Accounts.saml.initiateLogin(options, function (error, result) {
+    if (result) {
       Accounts.saml.debugLog('saml_client.js', '67', 'result from initiateLogin: ' + result, false);
-    }else {
+    } else {
       Accounts.saml.debugLog('saml_client.js', '69', 'error from initiateLogin: ' + error, true);
     }
 
     Accounts.callLoginMethod({
-      methodArguments: [{saml: true, credentialToken: credentialToken}],
+      methodArguments: [{ saml: true, credentialToken: credentialToken }],
       userCallback: callback
     });
   });
