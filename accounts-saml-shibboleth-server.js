@@ -155,7 +155,6 @@ middleware = function (req, res, next) {
     if (samlObject.actionName === "authorize") {
       //Truby, change our meteadatafile to remove the /1ed79ec15dfd from id.
       service.callbackUrl = Meteor.absoluteUrl("_saml/validate/" + service.provider + "/1ed79ec15dfd"); //samlObject.credentialToken); //I added the id at end may not need it.
-      console.log('wadabout this: ', service.callbackUrl)
       service.id = samlObject.credentialToken;
       _saml = new SAML(service);
       _saml.getAuthorizeUrl(req, function (err, url) {

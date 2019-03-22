@@ -29,7 +29,7 @@ SAML.prototype.generateServiceProviderMetadata = function () {
         privateCert = Meteor.settings.saml[0]['privateCert'] || Meteor.settings.saml[0]['decryptionPvk'];
         signingCert = Meteor.settings.saml[0]['signingCert'] || Meteor.settings.saml[0]['decryptionCert'];
         decryptionCert = Meteor.settings.saml[0]['decryptionCert'] || Meteor.settings.saml[0]['signingCert'];
-        callbackUrl = Meteor.settings.saml[0]['callbackUrl'] || "https://" + issuer + 443
+        callbackUrl = Meteor.settings.saml[0]['callbackUrl'] || issuer.replace('/shibboleth', ':443')
         Accounts.saml.debugLog('saml_server.js', '38', 'fetching metadata info from settings', false);
       }
     }
