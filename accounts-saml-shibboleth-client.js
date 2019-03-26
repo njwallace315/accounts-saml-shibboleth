@@ -57,6 +57,10 @@ var openCenteredPopup = function (url, width, height) {
 };
 
 Meteor.loginWithSaml = function (options, callback) {
+  if (Meteor.userId()) {
+    callback('A user is already logged in')
+    return;
+  }
   options = options || {};
   var credentialToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
   options.credentialToken = credentialToken;
@@ -72,5 +76,16 @@ Meteor.loginWithSaml = function (options, callback) {
       methodArguments: [{ saml: true, credentialToken: credentialToken }],
       userCallback: callback
     });
+  });
+};
+
+Meteor.logoutWithSaml = function (options, callback) {
+  const userId = Meteor.userId();
+  if (!userId) {
+    callback('There is no logged in user')
+    return;
+  }
+  Meteor.logout(() => {
+    openCenteredPopup(Meteor.absoluteUrl("_saml/logout/" + options.provider + '/' + userId), 650, 500);
   });
 };

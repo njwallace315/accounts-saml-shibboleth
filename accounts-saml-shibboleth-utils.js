@@ -9,120 +9,12 @@ var fs = Npm.require('fs');
 var xmlbuilder = Npm.require('xmlbuilder');
 
 SAML = function (options) {
+  // console.log('utils: constructor')
   this.options = this.initialize(options);
 };
 
-SAML.prototype.generateServiceProviderMetadata = function () {
-  var issuer = '';
-  var decryptionPvk = '';
-  var privateCert = '';
-  var callbackUrl = '';
-  var decryptionCert = ''
-  var signingCert = '';
-  var logoutCallbackUrl = '';
-  var identifierFormat = null;
-  if (Meteor.settings) {
-    if (Meteor.settings['saml']) {
-      if (Meteor.settings.saml[0]['authFields']) {
-        issuer = Meteor.settings.saml[0]['issuer'];
-        decryptionPvk = Meteor.settings.saml[0]['decryptionPvk'] || Meteor.settings.saml[0]['privateCert'];
-        privateCert = Meteor.settings.saml[0]['privateCert'] || Meteor.settings.saml[0]['decryptionPvk'];
-        signingCert = Meteor.settings.saml[0]['signingCert'] || Meteor.settings.saml[0]['decryptionCert'];
-        decryptionCert = Meteor.settings.saml[0]['decryptionCert'] || Meteor.settings.saml[0]['signingCert'];
-        callbackUrl = Meteor.settings.saml[0]['callbackUrl'] || issuer.replace('/shibboleth', ':443')
-        Accounts.saml.debugLog('saml_server.js', '38', 'fetching metadata info from settings', false);
-      }
-    }
-  }
-  var metadata = {
-    'EntityDescriptor': {
-      '@xmlns': 'urn:oasis:names:tc:SAML:2.0:metadata',
-      '@xmlns:ds': 'http://www.w3.org/2000/09/xmldsig#',
-      '@entityID': issuer,
-      '@ID': issuer.replace(/\W/g, '_'),
-      'SPSSODescriptor': {
-        '@protocolSupportEnumeration': 'urn:oasis:names:tc:SAML:2.0:protocol',
-      },
-    }
-  };
-
-  if (decryptionPvk) {
-    if (!decryptionCert) {
-      throw new Error(
-        "Missing decryptionCert while generating metadata for decrypting service provider");
-    }
-  }
-
-  if (privateCert) {
-    if (!signingCert) {
-      throw new Error(
-        "Missing signingCert while generating metadata for signing service provider messages");
-    }
-  }
-
-  if (decryptionPvk || privateCert) {
-    metadata.EntityDescriptor.SPSSODescriptor.KeyDescriptor = [];
-    if (privateCert) {
-
-      signingCert = signingCert.replace(/-+BEGIN CERTIFICATE-+\r?\n?/, '');
-      signingCert = signingCert.replace(/-+END CERTIFICATE-+\r?\n?/, '');
-      signingCert = signingCert.replace(/\r\n/g, '\n');
-
-      metadata.EntityDescriptor.SPSSODescriptor.KeyDescriptor.push({
-        '@use': 'signing',
-        'ds:KeyInfo': {
-          'ds:X509Data': {
-            'ds:X509Certificate': {
-              '#text': signingCert
-            }
-          }
-        }
-      });
-    }
-
-    if (decryptionPvk) {
-      decryptionCert = decryptionCert.replace(/-+BEGIN CERTIFICATE-+\r?\n?/, '');
-      decryptionCert = decryptionCert.replace(/-+END CERTIFICATE-+\r?\n?/, '');
-      decryptionCert = decryptionCert.replace(/\r\n/g, '\n');
-
-      metadata.EntityDescriptor.SPSSODescriptor.KeyDescriptor.push({
-        '@use': 'encryption',
-        'ds:KeyInfo': {
-          'ds:X509Data': {
-            'ds:X509Certificate': {
-              '#text': decryptionCert
-            }
-          }
-        },
-        'EncryptionMethod': [
-          // this should be the set that the xmlenc library supports
-          { '@Algorithm': 'http://www.w3.org/2001/04/xmlenc#aes256-cbc' },
-          { '@Algorithm': 'http://www.w3.org/2001/04/xmlenc#aes128-cbc' },
-          { '@Algorithm': 'http://www.w3.org/2001/04/xmlenc#tripledes-cbc' }
-        ]
-      });
-    }
-  }
-
-  // if (logoutCallbackUrl) {
-  //   console.log('9.1')
-  //   metadata.EntityDescriptor.SPSSODescriptor.SingleLogoutService = {
-  //     '@Binding': 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST',
-  //     '@Location': logoutCallbackUrl
-  //   };
-  // }
-
-  metadata.EntityDescriptor.SPSSODescriptor.NameIDFormat = identifierFormat;
-  metadata.EntityDescriptor.SPSSODescriptor.AssertionConsumerService = {
-    '@index': '1',
-    '@isDefault': 'true',
-    '@Binding': 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST',
-    '@Location': callbackUrl,
-  };
-  return xmlbuilder.create(metadata).end({ pretty: true, indent: '  ', newline: '\n' });
-};
-
 SAML.prototype.initialize = function (options) {
+  // console.log('utils: initialize')
   if (!options) {
     options = {};
   }
@@ -140,13 +32,14 @@ SAML.prototype.initialize = function (options) {
   }
 
   if (options.identifierFormat === undefined) {
-    options.identifierFormat = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient";
-    //options.identifierFormat = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress";
+    // options.identifierFormat = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient";
+    options.identifierFormat = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress";
   }
   return options;
 };
 
 SAML.prototype.generateUniqueID = function () {
+  // console.log('utils: generate unique id')
   var chars = "abcdef0123456789";
   var uniqueID = "";
   for (var i = 0; i < 20; i++) {
@@ -156,18 +49,19 @@ SAML.prototype.generateUniqueID = function () {
 };
 
 SAML.prototype.generateInstant = function () {
-  //var date = new Date();
-  //return date.getUTCFullYear() + '-' + ('0' + (date.getUTCMonth()+1)).slice(-2) + '-' + ('0' + date.getUTCDate()).slice(-2) + 'T' + ('0' + (date.getUTCHours()+2)).slice(-2) + ":" + ('0' + date.getUTCMinutes()).slice(-2) + ":" + ('0' + date.getUTCSeconds()).slice(-2) + "Z";
+  // console.log('utils: generate instant')
   return new Date().toISOString();
 };
 
 SAML.prototype.signRequest = function (xml) {
+  // console.log('utils: sign request')
   var signer = crypto.createSign('RSA-SHA1');
   signer.update(xml);
-  return signer.sign(this.options.privateCert, 'base64');
+  return signer.sign(this.options.spSamlKey, 'base64');
 }
 
 SAML.prototype.generateAuthorizeRequest = function (req) {
+  // console.log('utils: generate authorize request')
   var id = "_" + this.generateUniqueID();
   var instant = this.generateInstant();
 
@@ -177,9 +71,11 @@ SAML.prototype.generateAuthorizeRequest = function (req) {
   } else {
     var callbackUrl = this.options.protocol + req.headers.host + this.options.path;
   }
+  // console.log('utils: callbackUrl: ', callbackUrl)
 
   if (this.options.id)
     id = this.options.id;
+  // console.log('login issuer: ', this.options.issuer)
 
   var request =
     "<samlp:AuthnRequest xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" ID=\"" + id + "\" Version=\"2.0\" IssueInstant=\"" + instant +
@@ -196,31 +92,40 @@ SAML.prototype.generateAuthorizeRequest = function (req) {
     "<samlp:RequestedAuthnContext xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" Comparison=\"exact\">" +
     "<saml:AuthnContextClassRef xmlns:saml=\"urn:oasis:names:tc:SAML:2.0:assertion\">urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport</saml:AuthnContextClassRef></samlp:RequestedAuthnContext>\n" +
     "</samlp:AuthnRequest>";
-
   return request;
 };
 
 SAML.prototype.generateLogoutRequest = function (req) {
+  // console.log('utils: generate logout request')
   var id = "_" + this.generateUniqueID();
   var instant = this.generateInstant();
+  if (this.options.callbackUrl) {
+    // console.log('utils: callbackUrl: ', callbackUrl)
+    callbackUrl = this.options.callbackUrl;
+  } else {
+    var callbackUrl = this.options.protocol + req.headers.host + this.options.path;
+  }
 
-  //samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
+  // var request = "samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
   // ID="_135ad2fd-b275-4428-b5d6-3ac3361c3a7f" Version="2.0" Destination="https://idphost/adfs/ls/"
-  //IssueInstant="2008-06-03T12:59:57Z"><saml:Issuer>myhost</saml:Issuer><NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
-  //NameQualifier="https://idphost/adfs/ls/">myemail@mydomain.com</NameID<samlp:SessionIndex>_0628125f-7f95-42cc-ad8e-fde86ae90bbe
-  //</samlp:SessionIndex></samlp:LogoutRequest>
+  // IssueInstant="2008-06-03T12:59:57Z"><saml:Issuer>myhost</saml:Issuer><NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+  // NameQualifier="https://idphost/adfs/ls/">myemail@mydomain.com</NameID<samlp:SessionIndex>_0628125f-7f95-42cc-ad8e-fde86ae90bbe
+  // </samlp:SessionIndex></samlp:LogoutRequest>"
+  // // console.log('logout issuer: ', this.options.issuer)
 
   var request = "<samlp:LogoutRequest xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" " +
     "xmlns:saml=\"urn:oasis:names:tc:SAML:2.0:assertion\" ID=\"" + id + "\" Version=\"2.0\" IssueInstant=\"" + instant +
-    "\" Destination=\"" + this.options.entryPoint + "\">" +
+    "\" AssertionConsumerServiceURL=\"" + "https://nate-dev-brms.ngrok.io/_saml/logoutRes/shibboleth-idp" + "\" Destination=\"" + this.options.logoutUrl + "\">" +
     "<saml:Issuer xmlns:saml=\"urn:oasis:names:tc:SAML:2.0:assertion\">" + this.options.issuer + "</saml:Issuer>" +
-    "<saml:NameID Format=\"" + req.user.nameIDFormat + "\">" + req.user.nameID + "</saml:NameID>" +
+    "<saml:NameID Format=\"" + req.user.profile.nameIDFormat + "\">" + req.user.profile.nameID + "</saml:NameID>" +
     "</samlp:LogoutRequest>";
+  // console.log('request: ', request)
   return request;
 }
 
 SAML.prototype.requestToUrl = function (request, operation, callback) {
-
+  // console.log('utils: request to url')
+  // // console.log('utils: request: ', request)
   var self = this;
   zlib.deflateRaw(request, function (err, buffer) {
 
@@ -246,7 +151,7 @@ SAML.prototype.requestToUrl = function (request, operation, callback) {
       SAMLRequest: base64
     };
 
-    if (self.options.privateCert) {
+    if (self.options.spSamlKey) {
       samlRequest.SigAlg = 'http://www.w3.org/2000/09/xmldsig#rsa-sha1';
       samlRequest.Signature = self.signRequest(querystring.stringify(samlRequest));
     }
@@ -257,18 +162,21 @@ SAML.prototype.requestToUrl = function (request, operation, callback) {
 }
 
 SAML.prototype.getAuthorizeUrl = function (req, callback) {
+  // console.log('utils: get authorize url')
   var request = this.generateAuthorizeRequest(req);
 
   this.requestToUrl(request, 'authorize', callback);
 };
 
 SAML.prototype.getLogoutUrl = function (req, callback) {
+  // console.log('utils: get logout url')
   var request = this.generateLogoutRequest(req);
 
   this.requestToUrl(request, 'logout', callback);
 }
 
 SAML.prototype.certToPEM = function (cert) {
+  // console.log('utils: cert to pem')
   cert = cert.match(/.{1,64}/g).join('\n');
   cert = "-----BEGIN CERTIFICATE-----\n" + cert;
   cert = cert + "\n-----END CERTIFICATE-----\n";
@@ -276,6 +184,7 @@ SAML.prototype.certToPEM = function (cert) {
 };
 
 SAML.prototype.validateSignature = function (xml, cert) {
+  // console.log('utils: validate signature')
   var self = this;
   var doc = new xmldom.DOMParser().parseFromString(xml);
   var signature = xmlCrypto.xpath(doc, "//*[local-name(.)='Signature' and namespace-uri(.)='http://www.w3.org/2000/09/xmldsig#']")[0];
@@ -293,6 +202,7 @@ SAML.prototype.validateSignature = function (xml, cert) {
 };
 
 SAML.prototype.getElement = function (parentElement, elementName) {
+  // console.log('utils: get element')
   if (parentElement['saml:' + elementName]) {
     return parentElement['saml:' + elementName];
   } else if (parentElement['samlp:' + elementName]) {
@@ -306,9 +216,9 @@ SAML.prototype.getElement = function (parentElement, elementName) {
 }
 
 SAML.prototype.validateResponse = function (samlResponse, callback) {
+  // console.log('utils: validate response')
   var self = this;
   var xmlDomDoc = new xmldom.DOMParser().parseFromString(samlResponse);
-
   try {
     var fname = "";
     if (Meteor.settings) {
@@ -351,8 +261,10 @@ SAML.prototype.validateResponse = function (samlResponse, callback) {
       //Get NameID
       //sample...
       var nameID = xmlCrypto.xpath(xmlDomDoc, "//*[local-name(.)='Assertion']/*[local-name(.)='Subject']/*[local-name(.)='NameID']/text()");
+      // // console.log('nameId: ', nameID)
       if (nameID) {
         profile.nameID = nameID[0].nodeValue;
+        // console.log('profile.nameID: ', profile.nameID)
 
         var nameIDNode = xmlCrypto.xpath(xmlDomDoc, "//*[local-name(.)='Assertion']/*[local-name(.)='Subject']/*[local-name(.)='NameID']/@Format");
         if (nameIDNode[0]) {
@@ -401,12 +313,6 @@ SAML.prototype.validateResponse = function (samlResponse, callback) {
         profile.email = profile.nameID;
       }
 
-      //truby added to handle TestShib.org
-      var isTestShib = false;
-      if (Meteor.settings['bUseTestShib']) {
-        isTestShib = Meteor.settings['bUseTestShib'] == true;
-        Accounts.saml.debugLog('saml_utils.js', '274', 'isTestShib = ' + isTestShib, false);
-      }
       if (!profile.email && profile.uid && isTestShib) {
         profile['email'] = profile.uid + '@testshib.org';
       }
@@ -437,16 +343,18 @@ SAML.prototype.validateResponse = function (samlResponse, callback) {
 
 //TRuby added below.
 SAML.prototype.decryptSAMLResponse = function (samlResponse) {
+  // console.log('utils: decrypt saml response')
   var self = this;
   var xml = new Buffer(samlResponse, 'base64').toString();
 
   try {
     var xmlDomDoc = new xmldom.DOMParser().parseFromString(xml);
-    var encryptedDataNode = xmlCrypto.xpath(xmlDomDoc, "//*[local-name(.)='EncryptedData' and namespace-uri(.)='http://www.w3.org/2001/04/xmlenc#']")[0];
+
+    var encryptedDataNode = xmlCrypto.xpath(xmlDomDoc, "//*[local-name(.)='EncryptedData' and namespace-uri(.)='http://www.w3.org/2001/04/xmlenc#']")[0]
+
     var encryptedData = encryptedDataNode.toString();
-    //var privateCert = '-----BEGIN RSA PRIVATE KEY-----MIICXgIBAAKBgQDBGsKZ7XrLGIjLIQ+JYwBU4zD+Ph/hXc33RWZ3wMnvAbR0eGjOkB5DnxM0aODGeplQoYyd0lcqDbtnX5HHNtT3mnoOgO2kJQbHWBRa+5Jc8KtuzXCxBXHRPtlCRnxitU5MlgwjASVDG6xlWE2mwAq8efcxsxsNemjxhZADdSurXQIDAQABAoGBAKwjI7g9p0mmnEKfPQ9WjnQddo4daSPoD/PODNLRq/EADxIISD1i4WecRW1h1IV5wnPLHuONHqBhT16OJhB1A5AM3mLeAk/aiSssAhaBLkjDwFZM/8/KdBBYfYjQ3FNbolIovWcixAQloM6A2pXGINjWEHKiVy+XV6lvhTP8BVVBAkEA3+WblPQoUdyPPn6XLaZUQlqxCkWwZYb7/BWHPHVFwo4f57s86ckWvPh7Kyhm1EZpfugFpkYtElvqFsA8RJK57QJBANzK4hLQ0KkouwUPBDxlrZaJzaHogJlzPIP29Gbqn/TnVTbKXjSDQtIGEnCEpawD2ZZBO7L5r4Fr5maQ+kYnyTECQQDJhRU6xWOBAt7fJfuWN+4A5zYQA9eYGh21r/7P2NHYIinvXiSeW8MehRv/JVcgWtvbQKTNGr64logkwBO+uL2lAkEAm6naW8Om6SxTNozQwrg4+2JqfNUMHaPWLX/l7c1LOwIB3SAt7L4CVUp8o6GRoEYSmNGjAlrw9sEY7oUWPnH8cQJAeltVoWLKOHrQa6qERTaNHY+Oqv+fbW0I3yS1lTlhhfYLMO8HrQbppSBdttgpFLA/WWrzA99VGcl9W4878ByLAw==-----END RSA PRIVATE KEY-----';//fs.readFileSync('/Users/tvoglund/Documents/Projects/Deployments/ShibbolethTest/x509/privatekey.pem', 'utf-8');
-    var privateCert = this.options.pem;
-    var decryptOptions = { key: privateCert };
+    var spSamlKey = this.options.spSamlKey;
+    var decryptOptions = { key: spSamlKey };
     var resultObj = self.decryptSAML(encryptedData, decryptOptions);
 
     if (resultObj.err) {
@@ -464,6 +372,7 @@ SAML.prototype.decryptSAMLResponse = function (samlResponse) {
 }
 
 SAML.prototype.decryptSAML = function (xml, options) {
+  // console.log('utils: decrypt saml')
   Accounts.saml.debugLog('saml_utils.js', '353', 'decryptSAML', false);
 
   if (!options) {
@@ -487,6 +396,7 @@ SAML.prototype.decryptSAML = function (xml, options) {
   var doc = new xmldom.DOMParser().parseFromString(xml);
 
   var symmetricKey = xmlencryption.decryptKeyInfo(doc, options);
+  // console.log('symmetricKey: ', symmetricKey)
   var encryptionMethod = xpath.select("/*[local-name(.)='EncryptedData']/*[local-name(.)='EncryptionMethod']", doc)[0];
   var encryptionAlgorithm = encryptionMethod.getAttribute('Algorithm');
   var encryptedContent = xpath.select("/*[local-name(.)='EncryptedData']/*[local-name(.)='CipherData']/*[local-name(.)='CipherValue']", doc)[0];
@@ -518,6 +428,7 @@ SAML.prototype.decryptSAML = function (xml, options) {
 };
 
 SAML.prototype.checkSAMLStatus = function (xmlDomDoc) {
+  // console.log('utils: check saml status')
   var status = { StatusCodeValue: null, StatusMessage: null, StatusDetail: null }
 
   var statusCodeValueNode = xmlCrypto.xpath(xmlDomDoc, "//*[local-name(.)='StatusCode']")[0];
@@ -537,4 +448,95 @@ SAML.prototype.checkSAMLStatus = function (xmlDomDoc) {
   //status.StatusMessage = xmlCrypto.xpath(xmlDomDoc, "//*[local-name(.)='StatusMessage']")[0].childNodes[0].nodeValue;
   //status.StatusDetail = xmlCrypto.xpath(xmlDomDoc, "//*[local-name(.)='StatusDetail']/*[local-name(.)='Cause']")[0].childNodes[0].nodeValue;
   return status;
+};
+
+SAML.prototype.generateServiceProviderMetadata = function () {
+  // console.log('utils: generate metadata')
+  var issuer = '';
+  var spSamlKey = '';
+  var spSamlCert = '';
+  var callbackUrl = this.options.callbackUrl || 'https://nate-dev-brms.ngrok.io/_saml/validate/shibboleth-idp'
+  var logoutCallbackUrl = this.options.logoutCallbackUrl || 'https://nate-dev-brms.ngrok.io/_saml/logoutRes/shibboleth-idp'
+  var identifierFormat = null;
+  if (Meteor.settings) {
+    if (Meteor.settings['saml']) {
+      if (Meteor.settings.saml[0]['authFields']) {
+        issuer = Meteor.settings.saml[0]['issuer'];
+        spSamlKey = Meteor.settings.saml[0]['spSamlKey']
+        spSamlCert = Meteor.settings.saml[0]['spSamlCert']
+        // callbackUrl = Meteor.settings.saml[0]['callbackUrl'] || issuer.replace('/shibboleth', ':443')
+        Accounts.saml.debugLog('saml_server.js', '38', 'fetching metadata info from settings', false);
+      }
+    }
+  }
+  var metadata = {
+    'EntityDescriptor': {
+      '@xmlns': 'urn:oasis:names:tc:SAML:2.0:metadata',
+      '@xmlns:ds': 'http://www.w3.org/2000/09/xmldsig#',
+      '@entityID': issuer,
+      '@ID': issuer.replace(/\W/g, '_'),
+      'SPSSODescriptor': {
+        '@protocolSupportEnumeration': 'urn:oasis:names:tc:SAML:2.0:protocol',
+      },
+    }
+  };
+
+  if (spSamlKey) {
+    if (!spSamlCert) {
+      throw new Error(
+        "Missing spSamlCert while generating metadata for decrypting service provider");
+    }
+  }
+
+  if (spSamlKey) {
+    metadata.EntityDescriptor.SPSSODescriptor.KeyDescriptor = [];
+
+    if (spSamlKey) {
+      spSamlCert = spSamlCert.replace(/-+BEGIN CERTIFICATE-+\r?\n?/, '');
+      spSamlCert = spSamlCert.replace(/-+END CERTIFICATE-+\r?\n?/, '');
+      spSamlCert = spSamlCert.replace(/\r\n/g, '\n');
+
+      metadata.EntityDescriptor.SPSSODescriptor.KeyDescriptor.push({
+        '@use': 'encryption',
+        'ds:KeyInfo': {
+          'ds:X509Data': {
+            'ds:X509Certificate': {
+              '#text': spSamlCert
+            }
+          }
+        },
+        'EncryptionMethod': [
+          // this should be the set that the xmlenc library supports
+          { '@Algorithm': 'http://www.w3.org/2001/04/xmlenc#aes256-cbc' },
+          { '@Algorithm': 'http://www.w3.org/2001/04/xmlenc#aes128-cbc' },
+          { '@Algorithm': 'http://www.w3.org/2001/04/xmlenc#tripledes-cbc' }
+        ]
+      });
+      metadata.EntityDescriptor.SPSSODescriptor.KeyDescriptor.push({
+        '@use': 'signing',
+        'ds:KeyInfo': {
+          'ds:X509Data': {
+            'ds:X509Certificate': {
+              '#text': spSamlCert
+            }
+          }
+        }
+      });
+    }
+  }
+  if (logoutCallbackUrl) {
+    metadata.EntityDescriptor.SPSSODescriptor.SingleLogoutService = {
+      '@Binding': 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect',
+      '@Location': logoutCallbackUrl
+    };
+  }
+
+  metadata.EntityDescriptor.SPSSODescriptor.NameIDFormat = identifierFormat;
+  metadata.EntityDescriptor.SPSSODescriptor.AssertionConsumerService = {
+    '@index': '1',
+    '@isDefault': 'true',
+    '@Binding': 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST',
+    '@Location': callbackUrl,
+  };
+  return xmlbuilder.create(metadata).end({ pretty: true, indent: '  ', newline: '\n' });
 };
