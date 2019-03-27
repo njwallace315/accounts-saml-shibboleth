@@ -17,11 +17,11 @@ Package.on_use(function (api) {
 });
 
 Npm.depends({
-    "xml2js": "0.2.0",
+    "xml2js": "0.4.19",
     "xml-crypto": "0.0.20",
     "xmldom": "0.1.19",
     "connect": "2.7.10",
     "xml-encryption": "0.7.2",
     "xpath": "0.0.5",
-    "xmlbuilder": "11.0.0"
+    "xmlbuilder": "11.0.0",
 });

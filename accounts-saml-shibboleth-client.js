@@ -86,6 +86,11 @@ Meteor.logoutWithSaml = function (options, callback) {
     return;
   }
   Meteor.logout(() => {
-    openCenteredPopup(Meteor.absoluteUrl("_saml/logout/" + options.provider + '/' + userId), 650, 500);
+    try {
+      openCenteredPopup(Meteor.absoluteUrl("_saml/logout/" + options.provider + '/' + userId), 650, 500);
+      callback(null, 'Logout successful')
+    } catch (err) {
+      callback(err)
+    }
   });
 };

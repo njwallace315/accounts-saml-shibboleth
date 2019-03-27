@@ -6,6 +6,7 @@ var querystring = Npm.require('querystring');
 var xmlencryption = Npm.require('xml-encryption');
 var xpath = Npm.require('xpath');
 var fs = Npm.require('fs');
+var xml2js = Npm.require('xml2js')
 var xmlbuilder = Npm.require('xmlbuilder');
 
 SAML = function (options) {
@@ -117,7 +118,7 @@ SAML.prototype.generateLogoutRequest = function (req) {
     "xmlns:saml=\"urn:oasis:names:tc:SAML:2.0:assertion\" ID=\"" + id + "\" Version=\"2.0\" IssueInstant=\"" + instant +
     "\" AssertionConsumerServiceURL=\"" + "https://nate-dev-brms.ngrok.io/_saml/logoutRes/shibboleth-idp" + "\" Destination=\"" + this.options.logoutUrl + "\">" +
     "<saml:Issuer xmlns:saml=\"urn:oasis:names:tc:SAML:2.0:assertion\">" + this.options.issuer + "</saml:Issuer>" +
-    "<saml:NameID Format=\"" + req.user.profile.nameIDFormat + "\">" + req.user.profile.nameID + "</saml:NameID>" +
+    "<saml2:NameID Format=\"urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress\" NameQualifier= \"" + this.options.IDPMetadataUrl + "\" SPNameQualifier=\"nate-dev-brms.ngrok.io\" xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">rsanchez@samltest.id</saml2:NameID>" +
     "</samlp:LogoutRequest>";
   // console.log('request: ', request)
   return request;
@@ -159,6 +160,15 @@ SAML.prototype.requestToUrl = function (request, operation, callback) {
 
     callback(null, target);
   });
+}
+
+SAML.prototype.inflateResponse = function (response, callback) {
+  zlib.inflateRaw(response, function (err, inflated) {
+    if (err) {
+      return callback(err)
+    }
+    else return callback(null, inflated)
+  })
 }
 
 SAML.prototype.getAuthorizeUrl = function (req, callback) {
@@ -425,6 +435,34 @@ SAML.prototype.decryptSAML = function (xml, options) {
     err: null,
     result: decrypted
   };
+};
+
+SAML.prototype.verifyLogoutResponse = function (deflatedResponse) {
+  var data = Buffer.from(deflatedResponse, "base64")
+  zlib.inflateRaw(data, function (err, inflated) {
+    if (err) {
+      // console.log('** error inflating response ** ', err)
+    }
+    var dom = new xmldom.DOMParser().parseFromString(inflated.toString());
+    var parserConfig = {
+      explicitRoot: true,
+      explicitCharKey: true,
+      tagNameProcessors: [xml2js.processors.stripPrefix]
+    };
+    var parser = new xml2js.Parser(parserConfig);
+    parser.parseString(inflated, function (err, doc) {
+      if (err) {
+        throw new Error('Error parsing logout response')
+      }
+      var statusCode = doc.LogoutResponse.Status[0].StatusCode[0].$.Value;
+      if (statusCode === "urn:oasis:names:tc:SAML:2.0:status:Success") {
+        // console.log('logout successful')
+        return true;
+      }
+      throw new Error('Invalid status code, logout not successful')
+    })
+  })
+
 };
 
 SAML.prototype.checkSAMLStatus = function (xmlDomDoc) {
