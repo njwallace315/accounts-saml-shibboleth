@@ -3,7 +3,6 @@ if (!Accounts.saml) {
 }
 
 Accounts.saml.initiateLogin = function (options, callback, dimensions) {
-
   // default dimensions that worked well for facebook and google
   var popup = openCenteredPopup(
     Meteor.absoluteUrl("_saml/authorize/" + options.provider + "/" + options.credentialToken),
@@ -87,10 +86,22 @@ Meteor.logoutWithSaml = function (options, callback) {
   }
   Meteor.logout(() => {
     try {
-      openCenteredPopup(Meteor.absoluteUrl("_saml/logout/" + options.provider + '/' + userId), 650, 500);
+      console.log(Meteor.settings.logoutLandingUrl || Meteor.absoluteUrl())
+      window.location.href = "_saml/logout/" + options.provider + '/' + userId
       callback(null, 'Logout successful')
     } catch (err) {
       callback(err)
     }
   });
 };
+
+Meteor.goToLogoutLanding = function (options, callback) {
+  console.log('here')
+  if (Meteor.settings && Meteor.settings.saml && Meteor.settings.saml[0]) {
+    window.location.href = Meteor.settings.saml[0].logoutLandingUrl || Meteor.absoluteUrl()
+  } else {
+    window.location.href = Meteor.absoluteUrl();
+  }
+
+}
+

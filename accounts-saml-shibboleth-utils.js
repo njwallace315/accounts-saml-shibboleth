@@ -10,12 +10,12 @@ var xml2js = Npm.require('xml2js')
 var xmlbuilder = Npm.require('xmlbuilder');
 
 SAML = function (options) {
-  // console.log('utils: constructor')
+  console.log('utils: constructor')
   this.options = this.initialize(options);
 };
 
 SAML.prototype.initialize = function (options) {
-  // console.log('utils: initialize')
+  console.log('utils: initialize')
   if (!options) {
     options = {};
   }
@@ -40,7 +40,7 @@ SAML.prototype.initialize = function (options) {
 };
 
 SAML.prototype.generateUniqueID = function () {
-  // console.log('utils: generate unique id')
+  console.log('utils: generate unique id')
   var chars = "abcdef0123456789";
   var uniqueID = "";
   for (var i = 0; i < 20; i++) {
@@ -50,19 +50,20 @@ SAML.prototype.generateUniqueID = function () {
 };
 
 SAML.prototype.generateInstant = function () {
-  // console.log('utils: generate instant')
+  console.log('utils: generate instant')
   return new Date().toISOString();
 };
 
 SAML.prototype.signRequest = function (xml) {
-  // console.log('utils: sign request')
+  console.log('utils: sign request')
   var signer = crypto.createSign('RSA-SHA1');
   signer.update(xml);
   return signer.sign(this.options.spSamlKey, 'base64');
 }
 
 SAML.prototype.generateAuthorizeRequest = function (req) {
-  // console.log('utils: generate authorize request')
+  console.log('utils: generate authorize request')
+  // TODO: change how this request is created
   var id = "_" + this.generateUniqueID();
   var instant = this.generateInstant();
 
@@ -72,7 +73,6 @@ SAML.prototype.generateAuthorizeRequest = function (req) {
   } else {
     var callbackUrl = this.options.protocol + req.headers.host + this.options.path;
   }
-  // console.log('utils: callbackUrl: ', callbackUrl)
 
   if (this.options.id)
     id = this.options.id;
@@ -97,7 +97,7 @@ SAML.prototype.generateAuthorizeRequest = function (req) {
 };
 
 SAML.prototype.generateLogoutRequest = function (req) {
-  // console.log('utils: generate logout request')
+  console.log('utils: generate logout request')
   var id = "_" + this.generateUniqueID();
   var instant = this.generateInstant();
   if (this.options.callbackUrl) {
@@ -106,6 +106,8 @@ SAML.prototype.generateLogoutRequest = function (req) {
   } else {
     var callbackUrl = this.options.protocol + req.headers.host + this.options.path;
   }
+
+  // TODO: change how this request is created
 
   // var request = "samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
   // ID="_135ad2fd-b275-4428-b5d6-3ac3361c3a7f" Version="2.0" Destination="https://idphost/adfs/ls/"
@@ -118,16 +120,16 @@ SAML.prototype.generateLogoutRequest = function (req) {
     "xmlns:saml=\"urn:oasis:names:tc:SAML:2.0:assertion\" ID=\"" + id + "\" Version=\"2.0\" IssueInstant=\"" + instant +
     "\" AssertionConsumerServiceURL=\"" + "https://nate-dev-brms.ngrok.io/_saml/logoutRes/shibboleth-idp" + "\" Destination=\"" + this.options.logoutUrl + "\">" +
     "<saml:Issuer xmlns:saml=\"urn:oasis:names:tc:SAML:2.0:assertion\">" + this.options.issuer + "</saml:Issuer>" +
-    "<saml2:NameID Format=\"urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress\" NameQualifier= \"" + this.options.IDPMetadataUrl + "\" SPNameQualifier=\"nate-dev-brms.ngrok.io\" xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">rsanchez@samltest.id</saml2:NameID>" +
+    "<saml2:NameID Format=\"urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress\" NameQualifier= \"" + this.options.IdpMetadataUrl + "\" SPNameQualifier=\"nate-dev-brms.ngrok.io\" xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">rsanchez@samltest.id</saml2:NameID>" +
     "</samlp:LogoutRequest>";
   // console.log('request: ', request)
   return request;
 }
 
 SAML.prototype.requestToUrl = function (request, operation, callback) {
-  // console.log('utils: request to url')
-  // // console.log('utils: request: ', request)
+  console.log('utils: request to url')
   var self = this;
+  // TODO: investigate Buffer and see if it needs to be applied here
   zlib.deflateRaw(request, function (err, buffer) {
 
     if (err) {
@@ -172,39 +174,51 @@ SAML.prototype.inflateResponse = function (response, callback) {
 }
 
 SAML.prototype.getAuthorizeUrl = function (req, callback) {
-  // console.log('utils: get authorize url')
+  console.log('utils: get authorize url')
   var request = this.generateAuthorizeRequest(req);
 
   this.requestToUrl(request, 'authorize', callback);
 };
 
 SAML.prototype.getLogoutUrl = function (req, callback) {
-  // console.log('utils: get logout url')
+  console.log('utils: get logout url')
   var request = this.generateLogoutRequest(req);
 
   this.requestToUrl(request, 'logout', callback);
 }
 
 SAML.prototype.certToPEM = function (cert) {
-  // console.log('utils: cert to pem')
   cert = cert.match(/.{1,64}/g).join('\n');
-  cert = "-----BEGIN CERTIFICATE-----\n" + cert;
-  cert = cert + "\n-----END CERTIFICATE-----\n";
+
+  if (cert.indexOf('-BEGIN CERTIFICATE-') === -1)
+    cert = "-----BEGIN CERTIFICATE-----\n" + cert;
+  if (cert.indexOf('-END CERTIFICATE-') === -1)
+    cert = cert + "\n-----END CERTIFICATE-----\n";
+
   return cert;
 };
 
-SAML.prototype.validateSignature = function (xml, cert) {
-  // console.log('utils: validate signature')
+SAML.prototype.validateSignature = function (xml, currentNode) {
+  console.log('utils: validate signature')
   var self = this;
-  var doc = new xmldom.DOMParser().parseFromString(xml);
-  var signature = xmlCrypto.xpath(doc, "//*[local-name(.)='Signature' and namespace-uri(.)='http://www.w3.org/2000/09/xmldsig#']")[0];
+  var cert = self.options.IdpCert
+  // var doc = new xmldom.DOMParser().parseFromString(xml);
+  // var signature = xmlCrypto.xpath(doc, "//*[local-name(.)='Signature' and namespace-uri(.)='http://www.w3.org/2000/09/xmldsig#']")[0];
+  var xpathSigQuery = ".//*[local-name(.)='Signature' and " +
+    "namespace-uri(.)='http://www.w3.org/2000/09/xmldsig#']";
+  var signatures = xmlCrypto.xpath(currentNode, xpathSigQuery);
+  // This function is expecting to validate exactly one signature, so if we find more or fewer
+  //   than that, reject.
+  if (signatures.length < 1) throw new Error('Could not find signature')
+  var signature = signatures[0];
+
   var sig = new xmlCrypto.SignedXml();
   sig.keyInfoProvider = {
     getKeyInfo: function (key) {
       return "<X509Data></X509Data>"
     },
     getKey: function (keyInfo) {
-      return self.certToPEM(cert);
+      return cert
     }
   };
   sig.loadSignature(signature.toString());
@@ -212,7 +226,7 @@ SAML.prototype.validateSignature = function (xml, cert) {
 };
 
 SAML.prototype.getElement = function (parentElement, elementName) {
-  // console.log('utils: get element')
+  console.log('utils: get element')
   if (parentElement['saml:' + elementName]) {
     return parentElement['saml:' + elementName];
   } else if (parentElement['samlp:' + elementName]) {
@@ -225,8 +239,8 @@ SAML.prototype.getElement = function (parentElement, elementName) {
   return parentElement[elementName];
 }
 
-SAML.prototype.validateResponse = function (samlResponse, callback) {
-  // console.log('utils: validate response')
+SAML.prototype.validateResponse = function (samlResponse, container, callback) {
+  console.log('utils: validate response')
   var self = this;
   var xmlDomDoc = new xmldom.DOMParser().parseFromString(samlResponse);
   try {
@@ -241,10 +255,24 @@ SAML.prototype.validateResponse = function (samlResponse, callback) {
     }
 
     // Verify signature
-    //if (self.options.cert && !self.validateSignature(xml, self.options.cert)) {
-    //    return callback(new Error('Invalid signature'), null, false);
-    //}
-
+    if (self.options.IdpCert) {
+      try {
+        var xml = Buffer.from(container.SAMLResponse, 'base64').toString('utf8');
+        var doc = new xmldom.DOMParser({
+        }).parseFromString(xml);
+        if (!doc.hasOwnProperty('documentElement'))
+          throw new Error('SAMLResponse is not valid base64-encoded XML');
+        if (!self.validateSignature(xml, doc.documentElement)) {
+          throw new Error('Signature did not match IdpCert')
+        }
+      } catch (err) {
+        console.log('validate signature error: ', err)
+        return callback(new Error('Invalid signature'), null, false);
+      }
+    } else {
+      return callback(new Error('IdpCert required in settings to validate signature'), null, false);
+    }
+    // console.log(Object.keys(xmlDomDoc))
     var assertion = xmlCrypto.xpath(xmlDomDoc, "//*[local-name(.)='Assertion']");
     if (assertion) {
       profile = {};
@@ -260,9 +288,6 @@ SAML.prototype.validateResponse = function (samlResponse, callback) {
       }
 
       //Get Issuer
-      //sample...  https://idp.testshib.org/idp/shibboleth
-      //Get Issuer
-      //sample...  https://idp.testshib.org/idp/shibboleth
       var issuer = xpath.select("//*[local-name(.)='Assertion']/*[local-name(.)='Issuer']/text()", xmlDomDoc);
       if (issuer) {
         profile.issuer = issuer[0].nodeValue;
@@ -271,10 +296,8 @@ SAML.prototype.validateResponse = function (samlResponse, callback) {
       //Get NameID
       //sample...
       var nameID = xmlCrypto.xpath(xmlDomDoc, "//*[local-name(.)='Assertion']/*[local-name(.)='Subject']/*[local-name(.)='NameID']/text()");
-      // // console.log('nameId: ', nameID)
       if (nameID) {
         profile.nameID = nameID[0].nodeValue;
-        // console.log('profile.nameID: ', profile.nameID)
 
         var nameIDNode = xmlCrypto.xpath(xmlDomDoc, "//*[local-name(.)='Assertion']/*[local-name(.)='Subject']/*[local-name(.)='NameID']/@Format");
         if (nameIDNode[0]) {
@@ -323,16 +346,14 @@ SAML.prototype.validateResponse = function (samlResponse, callback) {
         profile.email = profile.nameID;
       }
 
-      if (!profile.email && profile.uid && isTestShib) {
-        profile['email'] = profile.uid + '@testshib.org';
-      }
+      // TODO: investigate the origin of the field 'eduPersonPrincipalName'
       if (!profile.email && profile['eduPersonPrincipalName']) {
         Accounts.saml.debugLog('saml_utils.js', '305', 'Adding profile.email as eduPersonPrincipalName', false);
         profile['email'] = profile['eduPersonPrincipalName'];
       }
-
       callback(null, profile, false);
     } else {
+      // TODO: see if this is a good way to approach handling a logout response
       var logoutResponse = self.getElement(xmlDomDoc, 'LogoutResponse');
       Accounts.saml.debugLog('saml_utils.js', '307', 'Unknown SAML response message', true);
 
@@ -351,9 +372,8 @@ SAML.prototype.validateResponse = function (samlResponse, callback) {
   }
 };
 
-//TRuby added below.
 SAML.prototype.decryptSAMLResponse = function (samlResponse) {
-  // console.log('utils: decrypt saml response')
+  console.log('utils: decrypt saml response')
   var self = this;
   var xml = new Buffer(samlResponse, 'base64').toString();
 
@@ -382,7 +402,7 @@ SAML.prototype.decryptSAMLResponse = function (samlResponse) {
 }
 
 SAML.prototype.decryptSAML = function (xml, options) {
-  // console.log('utils: decrypt saml')
+  console.log('utils: decrypt saml')
   Accounts.saml.debugLog('saml_utils.js', '353', 'decryptSAML', false);
 
   if (!options) {
@@ -404,9 +424,14 @@ SAML.prototype.decryptSAML = function (xml, options) {
     };
   }
   var doc = new xmldom.DOMParser().parseFromString(xml);
-
+  /**
+   * TODO: This should check for a manually entered IDP Public Cert.
+   * 
+   * The line below seems to successfully be grabbing the decryption key but I'm not confident that being
+   * able to manually set it won't be handy down the road. The symmetric key is currently returned as a buffer but crypto will 
+   * also accept a string.
+   */
   var symmetricKey = xmlencryption.decryptKeyInfo(doc, options);
-  // console.log('symmetricKey: ', symmetricKey)
   var encryptionMethod = xpath.select("/*[local-name(.)='EncryptedData']/*[local-name(.)='EncryptionMethod']", doc)[0];
   var encryptionAlgorithm = encryptionMethod.getAttribute('Algorithm');
   var encryptedContent = xpath.select("/*[local-name(.)='EncryptedData']/*[local-name(.)='CipherData']/*[local-name(.)='CipherValue']", doc)[0];
@@ -466,7 +491,7 @@ SAML.prototype.verifyLogoutResponse = function (deflatedResponse) {
 };
 
 SAML.prototype.checkSAMLStatus = function (xmlDomDoc) {
-  // console.log('utils: check saml status')
+  console.log('utils: check saml status')
   var status = { StatusCodeValue: null, StatusMessage: null, StatusDetail: null }
 
   var statusCodeValueNode = xmlCrypto.xpath(xmlDomDoc, "//*[local-name(.)='StatusCode']")[0];
@@ -489,7 +514,7 @@ SAML.prototype.checkSAMLStatus = function (xmlDomDoc) {
 };
 
 SAML.prototype.generateServiceProviderMetadata = function () {
-  // console.log('utils: generate metadata')
+  console.log('utils: generate metadata')
   var issuer = '';
   var spSamlKey = '';
   var spSamlCert = '';

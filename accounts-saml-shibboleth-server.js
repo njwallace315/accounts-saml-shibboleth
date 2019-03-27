@@ -103,12 +103,14 @@ Accounts.saml.retrieveCredential = function (credentialToken) {
 
 // Listen to incoming OAuth http requests
 WebApp.connectHandlers.use(function (req, res, next) {
-  // console.log('server: express')
+  console.log('server: express')
   // Need to create a Fiber since we're using synchronous http calls and nothing
   // else is wrapping this in a fiber automatically
 
   if (req.method === 'POST') {
+    console.log('post')
     var fullBody = '';
+    // TODO: figure out what's going on here with the chunk
     req.on('data', function (chunk) {
       // Do something with `chunk` here
       fullBody += chunk.toString();
@@ -122,6 +124,7 @@ WebApp.connectHandlers.use(function (req, res, next) {
     });
   }
   else {
+    console.log('else')
     Fiber(function () {
       middleware(req, res, next);
     }).run();
@@ -129,7 +132,7 @@ WebApp.connectHandlers.use(function (req, res, next) {
 });
 
 middleware = function (req, res, next) {
-  // console.log('server: middleware')
+  console.log('server: middleware')
   // Make sure to catch any exceptions because otherwise we'd crash
   // the runner
   try {
@@ -156,8 +159,10 @@ middleware = function (req, res, next) {
     }
 
     if (samlObject.actionName === "authorize") {
+      console.log('server: middleware/authorize')
       //Truby, change our meteadatafile to remove the /1ed79ec15dfd from id.
       // service.callbackUrl = Meteor.absoluteUrl("_saml/validate/" + service.provider); //samlObject.credentialToken); //I added the id at end may not need it.
+      // TODO: un-hardcode this, potentially add credential token as seen above
       service.callbackUrl = 'https://nate-dev-brms.ngrok.io/_saml/validate/' + service.provider;
       service.id = samlObject.credentialToken;
       _saml = new SAML(service);
@@ -170,12 +175,13 @@ middleware = function (req, res, next) {
         res.end();
       });
     } else if (samlObject.actionName === "validate") {
+      console.log('server: middleware/validate')
       _saml = new SAML(service);
       //decrypt response first, then validate the decrypted response
       var decryptedResponse = _saml.decryptSAMLResponse(req.body.SAMLResponse);
-      // console.log('decrypted response: ', decryptedResponse)
-      _saml.validateResponse(decryptedResponse, function (err, profile, loggedOut) {
+      _saml.validateResponse(decryptedResponse, req.body, function (err, profile, loggedOut) {
         if (err) {
+          console.log('validation error: ', err)
           Accounts.saml.debugLog('saml_server.js', '175', "Throw Unable to validate response url", true);
           throw new Error("Unable to validate response url");
         }
@@ -196,19 +202,21 @@ middleware = function (req, res, next) {
         closePopup(res);
       });
     } else if (samlObject.actionName === 'logoutRes') {
-      req.body = { SAMLResponse: decodeURIComponent(samlObject.SAMLResponse.replace('SAMLResponse=', '')) };
+      console.log('server: middleware/logoutres')
+      console.log('req.query: ', req.query)
+      req.body = { SAMLResponse: decodeURIComponent(req.query.SAMLResponse.replace('SAMLResponse=', '')) };
       _saml = new SAML(service);
       const deflatedResponse = req.body.SAMLResponse.split('&SigAlg')[0]
       _saml.verifyLogoutResponse(deflatedResponse)
-      closePopup(res)
+      res.end();
     } else if (samlObject.actionName === 'metadata') {
+      console.log('server: middleware/metadata')
       _saml = new SAML(service);
       res.writeHead(200);
       res.write(_saml.generateServiceProviderMetadata());
       res.end();
     } else if (samlObject.actionName === 'logout') {
-      // console.log('here')
-
+      console.log('server: middleware/logout')
       var userId = samlObject.credentialToken;
       const user = Meteor.users.findOne({ _id: userId });
       if (!user) {
@@ -253,9 +261,8 @@ var samlUrlToObject = function (url) {
 
   return {
     actionName: splitPath[2],
-    // TODO: find out why samltest is returning all this data and remove the split below
+    // logout response url has a query string that can get mixed up in the service name
     serviceName: splitPath[3].split('?')[0],
-    SAMLResponse: splitPath[3].split('?')[1], //logout response sends a url encoded SAMLResponse
     credentialToken: splitPath[4]
   };
 };
