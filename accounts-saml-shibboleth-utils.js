@@ -1,3 +1,4 @@
+/* eslint-disable */
 var zlib = Npm.require('zlib');
 var xmlCrypto = Npm.require('xml-crypto');
 var crypto = Npm.require('crypto');
@@ -120,7 +121,7 @@ SAML.prototype.generateLogoutRequest = function (req) {
     "xmlns:saml=\"urn:oasis:names:tc:SAML:2.0:assertion\" ID=\"" + id + "\" Version=\"2.0\" IssueInstant=\"" + instant +
     "\" AssertionConsumerServiceURL=\"" + "https://nate-dev-brms.ngrok.io/_saml/logoutRes/shibboleth-idp" + "\" Destination=\"" + this.options.logoutUrl + "\">" +
     "<saml:Issuer xmlns:saml=\"urn:oasis:names:tc:SAML:2.0:assertion\">" + this.options.issuer + "</saml:Issuer>" +
-    "<saml2:NameID Format=\"urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress\" NameQualifier= \"" + this.options.IdpMetadataUrl + "\" SPNameQualifier=\"nate-dev-brms.ngrok.io\" xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">rsanchez@samltest.id</saml2:NameID>" +
+    "<saml2:NameID Format=\"" + req.user.profile.nameIDFormat + "\" NameQualifier= \"" + this.options.IdpMetadataUrl + "\" SPNameQualifier=\"nate-dev-brms.ngrok.io\" xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">" + req.user.profile.nameID + "</saml2:NameID>" +
     "</samlp:LogoutRequest>";
   // console.log('request: ', request)
   return request;
