@@ -26,22 +26,33 @@ SAML.prototype.initialize = function (options) {
   }
 
   if (!options.path) {
-    options.path = '/saml/consume';
+    options.path = '/_saml/';
   }
 
   if (!options.issuer) {
-    options.issuer = Meteor.absoluteUrl();
+    options.issuer = Meteor.absoluteUrl().split;
   }
 
   if (options.issuer[options.issuer.length - 1] === '/') {
     options.issuer = options.issuer.substring(0, options.issuer.length - 1)
-    console.log('optiss: ', options.issuer)
   }
 
-  if (options.identifierFormat === undefined) {
-    // options.identifierFormat = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient";
-    options.identifierFormat = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress";
+  if (!options.provider) {
+    options.provider = 'shibboleth-idp'
   }
+
+  if (!options.callbackUrl) {
+    options.callbackUrl = options.protocol + options.issuer + options.path + 'validate/' + options.provider
+  }
+
+  if (!options.logoutCallbackUrl) {
+    options.logoutCallbackUrl = options.protocol + options.issuer + options.path + 'validateLogout/' + options.provider
+  }
+
+  if (!options.identifierFormat) {
+    options.identifierFormat = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+  }
+
   return options;
 };
 
@@ -65,57 +76,57 @@ SAML.prototype.signRequest = function (xml) {
 SAML.prototype.generateAuthorizeRequest = function (req) {
   console.log('utils: generate authorize request')
   // TODO: change how this request is created
+  const self = this;
   var id = "_" + this.generateUniqueID();
   var instant = this.generateInstant();
 
-  // Post-auth destination
-  if (this.options.callbackUrl) {
-    callbackUrl = this.options.callbackUrl;
-  } else {
-    var callbackUrl = this.options.protocol + req.headers.host + this.options.path;
+  if (this.options.id) id = this.options.id;
+
+  var request = {
+    'samlp:AuthnRequest': {
+      '@xmlns:samlp': 'urn:oasis:names:tc:SAML:2.0:protocol',
+      '@ID': id,
+      '@Version': '2.0',
+      '@IssueInstant': instant,
+      '@ProtocolBinding': 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST',
+      '@Destination': this.options.entryPoint,
+      'saml:Issuer': {
+        '@xmlns:saml': 'urn:oasis:names:tc:SAML:2.0:assertion',
+        '#text': this.options.issuer
+      }
+    }
+  };
+
+  if (!this.options.disableRequestACSUrl) {
+    request['samlp:AuthnRequest']['@AssertionConsumerServiceURL'] = this.options.callbackUrl
   }
-
-  if (this.options.id)
-    id = this.options.id;
-  // console.log('login issuer: ', this.options.issuer)
-
-  var request =
-    "<samlp:AuthnRequest xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" ID=\"" + id + "\" Version=\"2.0\" IssueInstant=\"" + instant +
-    "\" ProtocolBinding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\" AssertionConsumerServiceURL=\"" + callbackUrl + "\" Destination=\"" +
-    this.options.entryPoint + "\">" +
-    "<saml:Issuer xmlns:saml=\"urn:oasis:names:tc:SAML:2.0:assertion\">" + this.options.issuer + "</saml:Issuer>\n";
 
   if (this.options.identifierFormat) {
-    request += "<samlp:NameIDPolicy xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" Format=\"" + this.options.identifierFormat +
-      "\" AllowCreate=\"true\"></samlp:NameIDPolicy>\n";
+    request['samlp:AuthnRequest']['samlp:NameIDPolicy'] = {
+      '@xmlns:samlp': 'urn:oasis:names:tc:SAML:2.0:protocol',
+      '@Format': self.options.identifierFormat,
+      '@AllowCreate': 'true'
+    };
   }
 
-  request +=
-    "<samlp:RequestedAuthnContext xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" Comparison=\"exact\">" +
-    "<saml:AuthnContextClassRef xmlns:saml=\"urn:oasis:names:tc:SAML:2.0:assertion\">urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport</saml:AuthnContextClassRef></samlp:RequestedAuthnContext>\n" +
-    "</samlp:AuthnRequest>";
-  return request;
+  request['samlp:AuthnRequest']['samlp:RequestedAuthnContext'] = {
+    '@xmlns:samlp': 'urn:oasis:names:tc:SAML:2.0:protocol',
+    '@Comparison': "exact",
+    'saml:AuthnContextClassRef': {
+      '@xmlns:saml': 'urn:oasis:names:tc:SAML:2.0:assertion',
+      '#text': 'urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport'
+    }
+  };
+
+  return xmlbuilder.create(request).end()
 };
 
 SAML.prototype.generateLogoutRequest = function (req) {
   console.log('utils: generate logout request')
   var id = "_" + this.generateUniqueID();
   var instant = this.generateInstant();
-  if (this.options.callbackUrl) {
-    // console.log('utils: callbackUrl: ', callbackUrl)
-    callbackUrl = this.options.callbackUrl;
-  } else {
-    var callbackUrl = this.options.protocol + req.headers.host + this.options.path;
-  }
 
   // TODO: change how this request is created
-
-  // var request = "samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
-  // ID="_135ad2fd-b275-4428-b5d6-3ac3361c3a7f" Version="2.0" Destination="https://idphost/adfs/ls/"
-  // IssueInstant="2008-06-03T12:59:57Z"><saml:Issuer>myhost</saml:Issuer><NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
-  // NameQualifier="https://idphost/adfs/ls/">myemail@mydomain.com</NameID<samlp:SessionIndex>_0628125f-7f95-42cc-ad8e-fde86ae90bbe
-  // </samlp:SessionIndex></samlp:LogoutRequest>"
-  // // console.log('logout issuer: ', this.options.issuer)
 
   var request = "<samlp:LogoutRequest xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" " +
     "xmlns:saml=\"urn:oasis:names:tc:SAML:2.0:assertion\" ID=\"" + id + "\" Version=\"2.0\" IssueInstant=\"" + instant +
@@ -333,7 +344,6 @@ SAML.prototype.validateResponse = function (samlResponse, container, callback) {
         });
 
         if (!profile.mail && profile['urn:oid:0.9.2342.19200300.100.1.3']) {
-          // See http://www.incommonfederation.org/attributesummary.html for definition of attribute OIDs
           profile.mail = profile['urn:oid:0.9.2342.19200300.100.1.3'];
         }
 
@@ -511,19 +521,18 @@ SAML.prototype.checkSAMLStatus = function (xmlDomDoc) {
 
 SAML.prototype.generateServiceProviderMetadata = function () {
   console.log('utils: generate metadata')
-  var issuer = '';
-  var spSamlKey = '';
-  var spSamlCert = '';
-  var callbackUrl = this.options.callbackUrl || 'https://nate-dev-brms.ngrok.io/_saml/validate/shibboleth-idp'
-  var logoutCallbackUrl = this.options.logoutCallbackUrl || 'https://nate-dev-brms.ngrok.io/_saml/validateLogout/shibboleth-idp'
-  var identifierFormat = null;
+  var issuer = this.options.issuer;
+  var spSamlKey = this.options.spSamlKey;
+  var spSamlCert = this.options.spSamlCert;
+  var callbackUrl = this.options.callbackUrl
+  var logoutCallbackUrl = this.options.logoutCallbackUrl
+  var identifierFormat = this.options.identifierFormat;
   if (Meteor.settings) {
     if (Meteor.settings['saml']) {
       if (Meteor.settings.saml[0]['authFields']) {
         issuer = Meteor.settings.saml[0]['issuer'];
         spSamlKey = Meteor.settings.saml[0]['spSamlKey']
         spSamlCert = Meteor.settings.saml[0]['spSamlCert']
-        // callbackUrl = Meteor.settings.saml[0]['callbackUrl'] || issuer.replace('/shibboleth', ':443')
         Accounts.saml.debugLog('saml_server.js', '38', 'fetching metadata info from settings', false);
       }
     }
