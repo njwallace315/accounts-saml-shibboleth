@@ -268,12 +268,11 @@ SAML.prototype.validateResponse = function (samlResponse, container, callback) {
         }
       } catch (err) {
         console.log('validate signature error: ', err)
-        return callback(new Error('Invalid signature'), null, false);
+        return callback(new Error('Invalid signature'), null);
       }
     } else {
-      return callback(new Error('IdpCert required in settings to validate signature'), null, false);
+      return callback(new Error('IdpCert required in settings to validate signature'), null);
     }
-    // console.log(Object.keys(xmlDomDoc))
     var assertion = xmlCrypto.xpath(xmlDomDoc, "//*[local-name(.)='Assertion']");
     if (assertion) {
       profile = {};
@@ -282,7 +281,6 @@ SAML.prototype.validateResponse = function (samlResponse, container, callback) {
       var authnStatement = xmlCrypto.xpath(xmlDomDoc, "//*[local-name(.)='Assertion']/*[local-name(.)='AuthnStatement']");
 
       //Get InResponseTo
-      //sample...  1ed79ec15dfd
       var inResponseTo = xmlCrypto.xpath(xmlDomDoc, "//*[local-name(.)='SubjectConfirmationData']/@InResponseTo");
       if (inResponseTo) {
         profile.inResponseToId = inResponseTo[0].nodeValue;
@@ -325,6 +323,7 @@ SAML.prototype.validateResponse = function (samlResponse, container, callback) {
           }
           if (profileKey) {
             try {
+              console.log('assigning: ', profileKey, ' Value: ', item.firstChild.firstChild.nodeValue)
               profile[profileKey] = item.firstChild.firstChild.nodeValue;
             }
             catch (err) {
@@ -347,29 +346,25 @@ SAML.prototype.validateResponse = function (samlResponse, container, callback) {
         profile.email = profile.nameID;
       }
 
-      // TODO: investigate the origin of the field 'eduPersonPrincipalName'
+      /**
+       * eduPersonalName seems to be a remnant of shibboleth 1.x
+       * "it is commonly thought of as the global equivalent of a "netid""
+       * it may be that we don't want this assigned to email
+       * TODO: see if netid is the most appropriate place to put the eduPersonPrincipleName
+       */
       if (!profile.email && profile['eduPersonPrincipalName']) {
         Accounts.saml.debugLog('saml_utils.js', '305', 'Adding profile.email as eduPersonPrincipalName', false);
-        profile['email'] = profile['eduPersonPrincipalName'];
+        profile['netid'] = profile['eduPersonPrincipalName'];
       }
-      callback(null, profile, false);
+      callback(null, profile);
     } else {
-      // TODO: see if this is a good way to approach handling a logout response
-      var logoutResponse = self.getElement(xmlDomDoc, 'LogoutResponse');
-      Accounts.saml.debugLog('saml_utils.js', '307', 'Unknown SAML response message', true);
-
-      if (logoutResponse) {
-        callback(null, null, true);
-      } else {
-        return callback(new Error('Unknown SAML response message'), null, false);
-      }
-
+      return callback(new Error('Unknown SAML response message'), null);
     }
   }
   catch (error) {
     Accounts.saml.debugLog('saml_utils.js', '318', 'Unknown SAML response message.. Error: ' + error, true);
 
-    return callback(new Error('Unknown SAML response message'), null, false);
+    return callback(new Error('Unknown SAML response message'), null);
   }
 };
 

@@ -193,7 +193,7 @@ middleware = function (req, res, next) {
         _saml = new SAML(service);
         // decrypt response first, then validate the decrypted response
         let decryptedResponse = _saml.decryptSAMLResponse(req.body.SAMLResponse);
-        _saml.validateResponse(decryptedResponse, req.body, function (err, profile, loggedOut) {
+        _saml.validateResponse(decryptedResponse, req.body, function (err, profile) {
           if (err) {
             console.log('validation error: ', err);
             Accounts.saml.debugLog(
