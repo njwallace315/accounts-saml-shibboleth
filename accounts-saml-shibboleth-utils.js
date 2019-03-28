@@ -46,13 +46,8 @@ SAML.prototype.initialize = function (options) {
 };
 
 SAML.prototype.generateUniqueID = function () {
-  console.log('utils: generate unique id')
-  var chars = "abcdef0123456789";
-  var uniqueID = "";
-  for (var i = 0; i < 20; i++) {
-    uniqueID += chars.substr(Math.floor((Math.random() * 15)), 1);
-  }
-  return uniqueID;
+  console.log('utils: generate unique ID')
+  return crypto.randomBytes(10).toString('hex');
 };
 
 SAML.prototype.generateInstant = function () {
