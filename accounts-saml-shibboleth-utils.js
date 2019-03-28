@@ -30,7 +30,12 @@ SAML.prototype.initialize = function (options) {
   }
 
   if (!options.issuer) {
-    options.issuer = 'onelogin_saml';
+    options.issuer = Meteor.absoluteUrl();
+  }
+
+  if (options.issuer[options.issuer.length - 1] === '/') {
+    options.issuer = options.issuer.substring(0, options.issuer.length - 1)
+    console.log('optiss: ', options.issuer)
   }
 
   if (options.identifierFormat === undefined) {

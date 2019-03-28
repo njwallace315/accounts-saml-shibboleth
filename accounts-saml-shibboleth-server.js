@@ -10,7 +10,7 @@ let xmldom = Npm.require('xmldom');
 RoutePolicy.declare('/_saml/', 'network');
 
 Accounts.registerLoginHandler(function (loginRequest) {
-  // console.log('server: register login handler')
+  console.log('server: meteor login handler')
   try {
     var myKeys = Object.keys(profile);
     var concatfiles = "";
@@ -91,12 +91,12 @@ Accounts.registerLoginHandler(function (loginRequest) {
 Accounts.saml._loginResultForCredentialToken = {};
 
 Accounts.saml.hasCredential = function (credentialToken) {
-  // console.log('server: has credential')
+  console.log('server: has credential')
   return _.has(Accounts.saml._loginResultForCredentialToken, credentialToken);
 };
 
 Accounts.saml.retrieveCredential = function (credentialToken) {
-  // console.log('server: retrieve credential')
+  console.log('server: retrieve credential')
   let result = Accounts.saml._loginResultForCredentialToken[credentialToken];
   delete Accounts.saml._loginResultForCredentialToken[credentialToken];
   return result;
@@ -109,7 +109,7 @@ WebApp.connectHandlers.use(function (req, res, next) {
   // else is wrapping this in a fiber automatically
 
   if (req.method === 'POST') {
-    console.log('post');
+    console.log('POST request');
     let fullBody = '';
     // TODO: figure out what's going on here with the chunk
     req.on('data', function (chunk) {
@@ -124,7 +124,7 @@ WebApp.connectHandlers.use(function (req, res, next) {
       }).run();
     });
   } else {
-    console.log('else');
+    console.log('GET request')
     Fiber(function () {
       middleware(req, res, next);
     }).run();
@@ -165,7 +165,12 @@ middleware = function (req, res, next) {
         console.log('server: middleware/authorize');
         // service.callbackUrl = Meteor.absoluteUrl("_saml/validate/" + service.provider); //samlObject.credentialToken); //I added the id at end may not need it.
         // TODO: un-hardcode this, potentially add credential token as seen above
-        service.callbackUrl = `https://nate-dev-brms.ngrok.io/_saml/validate/${service.provider}`;
+        if (Meteor.settings && Meteor.settings.saml && Meteor.settings.saml[0].issuer) {
+          service.callbackUrl = 'https://' + Meteor.settings.saml[0].issuer + '/_saml/validate/' + service.provider
+        } else {
+          Accounts.saml.debugLog('saml_server.js', '142', 'Issuer not set in SAML settings. Using ROOT_URL environment variable. If you are using localhost, this may cause issues with shibboleth.', false);
+          service.callbackUrl = Meteor.absoluteUrl('/_saml/validate/' + service.provider);
+        }
         service.id = samlObject.credentialToken;
         _saml = new SAML(service);
         _saml.getAuthorizeUrl(req, function (err, url) {
@@ -259,7 +264,7 @@ middleware = function (req, res, next) {
         break;
       }
       case 'logoutRes': {
-        console.log('server: middleware/logoutres');
+        console.log('server: middleware/logoutRes');
         req.body = {
           SAMLResponse: decodeURIComponent(req.query.SAMLResponse.replace('SAMLResponse=', '')),
         };
@@ -282,121 +287,6 @@ middleware = function (req, res, next) {
         closePopup(res, err);
       }
     }
-    // if (samlObject.actionName === 'authorize') {
-    //   console.log('server: middleware/authorize');
-    //   // service.callbackUrl = Meteor.absoluteUrl("_saml/validate/" + service.provider); //samlObject.credentialToken); //I added the id at end may not need it.
-    //   // TODO: un-hardcode this, potentially add credential token as seen above
-    //   service.callbackUrl = `https://nate-dev-brms.ngrok.io/_saml/validate/${service.provider}`;
-    //   service.id = samlObject.credentialToken;
-    //   _saml = new SAML(service);
-    //   _saml.getAuthorizeUrl(req, function (err, url) {
-    //     if (err) {
-    //       Accounts.saml.debugLog(
-    //         'saml_server.js',
-    //         '163',
-    //         'Throw Unable to generate authorize url',
-    //         true
-    //       );
-    //       throw new Error('Unable to generate authorize url');
-    //     }
-    //     res.writeHead(302, { Location: url });
-    //     res.end();
-    //   });
-    // } else if (samlObject.actionName === 'validate') {
-    //   console.log('server: middleware/validate');
-    //   _saml = new SAML(service);
-    //   // decrypt response first, then validate the decrypted response
-    //   let decryptedResponse = _saml.decryptSAMLResponse(req.body.SAMLResponse);
-    //   _saml.validateResponse(decryptedResponse, req.body, function (err, profile, loggedOut) {
-    //     if (err) {
-    //       console.log('validation error: ', err);
-    //       Accounts.saml.debugLog(
-    //         'saml_server.js',
-    //         '175',
-    //         'Throw Unable to validate response url',
-    //         true
-    //       );
-    //       throw new Error('Unable to validate response url');
-    //     }
-
-    //     let credentialToken =
-    //       profile.inResponseToId || profile.InResponseTo || samlObject.credentialToken;
-    //     if (!credentialToken) {
-    //       Accounts.saml.debugLog(
-    //         'saml_server.js',
-    //         '181',
-    //         'Throw Unable to determine credentialToken',
-    //         true
-    //       );
-    //       throw new Error('Unable to determine credentialToken');
-    //     }
-
-    //     // Accounts.saml keys are hasCredential, retrieveCredential  TV
-    //     Accounts.saml._loginResultForCredentialToken[credentialToken] = {
-    //       profile,
-    //     };
-
-    //     Accounts.saml.debugLog(
-    //       'saml_server.js',
-    //       '190',
-    //       'closePopup being called.  CredentialToken: ' + credentialToken,
-    //       false
-    //     );
-
-    //     closePopup(res);
-    //   });
-    // } else if (samlObject.actionName === 'logoutRes') {
-    //   console.log('server: middleware/logoutres');
-    //   req.body = {
-    //     SAMLResponse: decodeURIComponent(req.query.SAMLResponse.replace('SAMLResponse=', '')),
-    //   };
-    //   _saml = new SAML(service);
-    //   const deflatedResponse = req.body.SAMLResponse.split('&SigAlg')[0];
-    //   _saml.verifyLogoutResponse(deflatedResponse);
-    //   res.end();
-    // } else if (samlObject.actionName === 'metadata') {
-    //   console.log('server: middleware/metadata');
-    //   _saml = new SAML(service);
-    //   res.writeHead(200);
-    //   res.write(_saml.generateServiceProviderMetadata());
-    //   res.end();
-    // } else if (samlObject.actionName === 'logout') {
-    //   console.log('server: middleware/logout');
-    //   let userId = samlObject.credentialToken;
-    //   const user = Meteor.users.findOne({ _id: userId });
-    //   if (!user) {
-    //     Accounts.saml.debugLog(
-    //       'saml_server.js',
-    //       '195',
-    //       'No logged in user ' + samlObject.actionName,
-    //       true
-    //     );
-    //     throw new Error('Attempted to log out a user but Meteor.user() returned null');
-    //   }
-    //   req.user = user;
-    //   _saml = new SAML(service);
-    //   _saml.getLogoutUrl(req, function (err, url) {
-    //     if (err) {
-    //       Accounts.saml.debugLog(
-    //         'saml_server.js',
-    //         '163',
-    //         'Throw Unable to generate logout url',
-    //         true
-    //       );
-    //       throw new Error('Unable to generate logout url');
-    //     }
-    //     res.writeHead(302, { Location: url });
-    //     res.end();
-    //   });
-    // } else {
-    //   Accounts.saml.debugLog(
-    //     'saml_server.js',
-    //     '195',
-    //     'Throw Unexpected SAML action ' + samlObject.actionName,
-    //     true
-    //   );
-    //   throw new Error('Unexpected SAML action ' + samlObject.actionName);
-    // }
   } catch (err) {
     // console.log('there was an error here: ', err)
     closePopup(res, err);
