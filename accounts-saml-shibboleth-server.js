@@ -263,8 +263,8 @@ middleware = function (req, res, next) {
         });
         break;
       }
-      case 'logoutRes': {
-        console.log('server: middleware/logoutRes');
+      case 'validateLogout': {
+        console.log('server: middleware/validateLogout');
         req.body = {
           SAMLResponse: decodeURIComponent(req.query.SAMLResponse.replace('SAMLResponse=', '')),
         };

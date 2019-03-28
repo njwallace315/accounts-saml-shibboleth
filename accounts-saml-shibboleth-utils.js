@@ -119,7 +119,7 @@ SAML.prototype.generateLogoutRequest = function (req) {
 
   var request = "<samlp:LogoutRequest xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" " +
     "xmlns:saml=\"urn:oasis:names:tc:SAML:2.0:assertion\" ID=\"" + id + "\" Version=\"2.0\" IssueInstant=\"" + instant +
-    "\" AssertionConsumerServiceURL=\"" + "https://nate-dev-brms.ngrok.io/_saml/logoutRes/shibboleth-idp" + "\" Destination=\"" + this.options.logoutUrl + "\">" +
+    "\" AssertionConsumerServiceURL=\"" + "https://nate-dev-brms.ngrok.io/_saml/validateLogout/shibboleth-idp" + "\" Destination=\"" + this.options.logoutUrl + "\">" +
     "<saml:Issuer xmlns:saml=\"urn:oasis:names:tc:SAML:2.0:assertion\">" + this.options.issuer + "</saml:Issuer>" +
     "<saml2:NameID Format=\"" + req.user.profile.nameIDFormat + "\" NameQualifier= \"" + this.options.IdpMetadataUrl + "\" SPNameQualifier=\"nate-dev-brms.ngrok.io\" xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">" + req.user.profile.nameID + "</saml2:NameID>" +
     "</samlp:LogoutRequest>";
@@ -515,7 +515,7 @@ SAML.prototype.generateServiceProviderMetadata = function () {
   var spSamlKey = '';
   var spSamlCert = '';
   var callbackUrl = this.options.callbackUrl || 'https://nate-dev-brms.ngrok.io/_saml/validate/shibboleth-idp'
-  var logoutCallbackUrl = this.options.logoutCallbackUrl || 'https://nate-dev-brms.ngrok.io/_saml/logoutRes/shibboleth-idp'
+  var logoutCallbackUrl = this.options.logoutCallbackUrl || 'https://nate-dev-brms.ngrok.io/_saml/validateLogout/shibboleth-idp'
   var identifierFormat = null;
   if (Meteor.settings) {
     if (Meteor.settings['saml']) {
