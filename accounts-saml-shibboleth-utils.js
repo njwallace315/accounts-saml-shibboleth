@@ -443,13 +443,6 @@ SAML.prototype.decryptSAML = function (xml, options) {
     };
   }
   var doc = new xmldom.DOMParser().parseFromString(xml);
-  /**
-   * TODO: This should check for a manually entered IDP Public Cert.
-   * 
-   * The line below seems to successfully be grabbing the decryption key but I'm not confident that being
-   * able to manually set it won't be handy down the road. The symmetric key is currently returned as a buffer but crypto will 
-   * also accept a string.
-   */
   var symmetricKey = xmlencryption.decryptKeyInfo(doc, options);
   var encryptionMethod = xpath.select("/*[local-name(.)='EncryptedData']/*[local-name(.)='EncryptionMethod']", doc)[0];
   var encryptionAlgorithm = encryptionMethod.getAttribute('Algorithm');

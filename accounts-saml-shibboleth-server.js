@@ -11,6 +11,7 @@ RoutePolicy.declare('/_saml/', 'network');
 
 Accounts.registerLoginHandler(function (loginRequest) {
   console.log('server: meteor login handler')
+  console.log('loginRequest: ', loginRequest)
   try {
     var myKeys = Object.keys(profile);
     var concatfiles = "";
@@ -28,14 +29,19 @@ Accounts.registerLoginHandler(function (loginRequest) {
   }
 
   var loginResult = Accounts.saml.retrieveCredential(loginRequest.credentialToken);
+  console.log('login result: ', loginResult)
 
   if (loginResult && loginResult.profile && loginResult.profile.email) {
     var fname = '';
     var dbField = '';
     var user = null;
+    var generateUsers = false;
 
     if (Meteor.settings) {
       if (Meteor.settings['saml']) {
+        if (typeof Meteor.settings.saml[0].generateUsers === 'boolean') {
+          generateUsers = Meteor.settings.saml[0].generateUsers
+        }
         if (Meteor.settings.saml[0]['authFields']) {
           fname = Meteor.settings.saml[0].authFields['fname'];
           dbField = Meteor.settings.saml[0].authFields['dbField'];
@@ -45,20 +51,24 @@ Accounts.registerLoginHandler(function (loginRequest) {
     }
     Accounts.saml.debugLog('saml_server.js', '42', 'fname: ' + fname + ', dbField: ' + dbField + ', First Query is Meteor.user.findOne({ ' + dbField + ' : ' + profile[fname] + ' })', false);
 
-    if (dbField === 'profile.studentID') {
-      user = Meteor.users.findOne({ 'profile.studentID': profile[fname] });
+    // Query with settings authfields
+    if (dbField && fname) {
+      user = Meteor.users.findOne({ dbField: loginrResult.profile[fname] })
     }
-    else if (dbField === 'emails.address') {
-      user = Meteor.users.findOne({ 'emails.address': loginResult.profile.email });
+    if (!user) {
+      // try some default lookups
+      var query = Accounts.saml.getDefaultUserQuery(loginResult.profile)
+      user = Meteor.users.findOne(query)
+      Accounts.saml.debugLog('saml_server.js', '60', 'User not found from authFields attribute in settings.json.  Using generated default query: ' + query + ', to find user.', false);
     }
 
     if (!user) {
-      Accounts.saml.debugLog('saml_server.js', '60', 'User not found from authFields attribute in settings.json.  Using emails.address with value: ' + loginResult.profile.email + ', to find user.', false);
-      Accounts.saml.debugLog('saml_server.js', '61', 'Second Query is Meteor.user.findOne({ emails.address : ' + loginResult.profile.email + ' })', false);
-      user = Meteor.users.findOne({ 'emails.address': loginResult.profile.email });
-      if (!user) {
-        Accounts.saml.debugLog('saml_server.js', '64', 'Could not find an existing user with credentials', true);
-        throw new Error("Could not find an existing user with supplied email " + loginResult.profile.email);
+      if (generateUsers) {
+        // TODO implement user generation
+        console.log('generate users not implemented')
+      } else {
+        Accounts.saml.debugLog('saml_server.js', '64', 'Could not find an existing user with credentials, generate users not set to true in settings', true);
+        throw new Error('User not found with data provided by login response.')
       }
     }
     else {
@@ -66,12 +76,11 @@ Accounts.registerLoginHandler(function (loginRequest) {
     }
 
     var stampedToken = Accounts._generateStampedLoginToken();
-    // var hashStampedToken = Accounts._hashStampedToken(stampedToken);
     // Meteor.users.update(user,
-    //   { $push: { 'services.resume.loginTokens': hashStampedToken }, $set: { 'profile.nameID': loginResult.profile.nameID, 'profile.nameIDFormat': loginResult.profile.nameIDFormat } }
+    //   { $set: { 'profile.nameID': loginResult.profile.nameID, 'profile.nameIDFormat': loginResult.profile.nameIDFormat } }
     // );
     Meteor.users.update(user,
-      { $set: { 'profile.nameID': loginResult.profile.nameID, 'profile.nameIDFormat': loginResult.profile.nameIDFormat } }
+      { $set: { 'profile': loginResult.profile } }
     );
 
     Accounts.saml.debugLog('saml_server.js', '79', 'registerLoginHandler user._id, stampedToken: ' + user._id + ',' + stampedToken.token, false);
@@ -102,6 +111,33 @@ Accounts.saml.retrieveCredential = function (credentialToken) {
   return result;
 };
 
+Accounts.saml.getDefaultUserQuery = function (profile) {
+  console.log('server: get default query')
+  if (!profile) {
+    throw new Error('cannot create default query without profile')
+  }
+  var $or = [];
+
+  // email can show up in the profile 3 ways
+  if (profile.nameIDFormat === 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress' && profile.nameID) {
+    $or.push({ 'emails.address': profile.nameID })
+  } else if (profile.email || profile.mail) {
+    $or.push({ 'emails.address': profile.email || profile.mail })
+  }
+  if (profile.uid) {
+    $or.push({ username: profile.uid })
+  }
+  if (profile.eduPersonPrincipalName) {
+    $or.push({ eduPersonPrincipalName: profile.eduPersonPrincipalName })
+    // eduPersonPrincipalName is sometimes reffered to the user's netid
+    $or.push({ netid: profile.eduPersonPrincipalName })
+  }
+  if ($or.length < 1) {
+    throw new Error('could not discern unique information from login response profile to query user.')
+  }
+  return { $or: $or }
+}
+
 // Listen to incoming OAuth http requests
 WebApp.connectHandlers.use(function (req, res, next) {
   console.log('server: express');
@@ -111,9 +147,7 @@ WebApp.connectHandlers.use(function (req, res, next) {
   if (req.method === 'POST') {
     console.log('POST request');
     let fullBody = '';
-    // TODO: figure out what's going on here with the chunk
     req.on('data', function (chunk) {
-      // Do something with `chunk` here
       fullBody += chunk.toString();
     });
 
