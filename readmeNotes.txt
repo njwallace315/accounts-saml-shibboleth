@@ -8,3 +8,5 @@ if (dbField === 'profile.studentID') {
 }
 Make it clear that I will (evenbtually) avoid putting data on the users profile field and 
 it is ill-advised to have an 'fname' that begins with 'profile.'.
+
+if generateUsers is set to true the user needs to run 'meteor add accounts-password' for now

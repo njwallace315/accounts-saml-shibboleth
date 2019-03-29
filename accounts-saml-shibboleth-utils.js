@@ -139,11 +139,11 @@ SAML.prototype.generateLogoutRequest = function (req) {
         '#text': this.options.issuer
       },
       'saml2:NameID': {
-        '@Format': req.user.profile.nameIDFormat,
+        '@Format': req.user.nameIDFormat,
         '@NameQualifier': this.options.IdpMetadataUrl,
         '@SPNameQualifier': this.options.issuer,
         '@xmlns:saml2': "urn:oasis:names:tc:SAML:2.0:assertion",
-        '#text': req.user.profile.nameID
+        '#text': req.user.nameID
       }
     }
   };

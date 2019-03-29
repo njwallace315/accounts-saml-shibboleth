@@ -32,6 +32,7 @@ Accounts.registerLoginHandler(function (loginRequest) {
   console.log('login result: ', loginResult)
 
   if (loginResult && loginResult.profile && loginResult.profile.email) {
+    var profile = loginResult.profile;
     var fname = '';
     var dbField = '';
     var user = null;
@@ -53,19 +54,40 @@ Accounts.registerLoginHandler(function (loginRequest) {
 
     // Query with settings authfields
     if (dbField && fname) {
-      user = Meteor.users.findOne({ dbField: loginrResult.profile[fname] })
+      user = Meteor.users.findOne({ dbField: profile[fname] })
     }
     if (!user) {
       // try some default lookups
-      var query = Accounts.saml.getDefaultUserQuery(loginResult.profile)
+      var query = Accounts.saml.getDefaultUserQuery(profile)
       user = Meteor.users.findOne(query)
       Accounts.saml.debugLog('saml_server.js', '60', 'User not found from authFields attribute in settings.json.  Using generated default query: ' + query + ', to find user.', false);
     }
 
     if (!user) {
       if (generateUsers) {
-        // TODO implement user generation
-        console.log('generate users not implemented')
+        user = {};
+
+        if (profile.nameIDFormat === 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress' && profile.nameID) {
+          user.email = profile.nameID;
+        } else if (profile.email || profile.mail) {
+          user.email = profile.email || profile.mail;
+        }
+
+        if (profile.uid) {
+          user.username = profile.uid
+        }
+
+        if (profile.eduPersonPrincipalName) {
+          user.netid = profile.eduPersonPrincipalName
+        }
+        if (!user.email && !user.username && !user.netid) {
+          throw new Error('Failed to generate a new user due to lack of profile data')
+        }
+        var _id = Accounts.createUser(user);
+        user = Meteor.users.findOne({ _id: _id });
+        if (!user) {
+          throw new Error('Failed to find user after generation')
+        }
       } else {
         Accounts.saml.debugLog('saml_server.js', '64', 'Could not find an existing user with credentials, generate users not set to true in settings', true);
         throw new Error('User not found with data provided by login response.')
@@ -76,11 +98,10 @@ Accounts.registerLoginHandler(function (loginRequest) {
     }
 
     var stampedToken = Accounts._generateStampedLoginToken();
-    // Meteor.users.update(user,
-    //   { $set: { 'profile.nameID': loginResult.profile.nameID, 'profile.nameIDFormat': loginResult.profile.nameIDFormat } }
-    // );
+
+    // TODO: you know better than to use the user's profile
     Meteor.users.update(user,
-      { $set: { 'profile': loginResult.profile } }
+      { $set: { 'nameIDFormat': profile.nameIDFormat, 'nameID': profile.nameID } }
     );
 
     Accounts.saml.debugLog('saml_server.js', '79', 'registerLoginHandler user._id, stampedToken: ' + user._id + ',' + stampedToken.token, false);
