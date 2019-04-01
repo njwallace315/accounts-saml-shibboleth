@@ -10,8 +10,8 @@ let xmldom = Npm.require('xmldom');
 RoutePolicy.declare('/_saml/', 'network');
 
 Accounts.registerLoginHandler(function (loginRequest) {
-  console.log('server: meteor login handler')
-  console.log('loginRequest: ', loginRequest)
+  // console.log('server: meteor login handler')
+  // console.log('loginRequest: ', loginRequest)
   try {
     var myKeys = Object.keys(profile);
     var concatfiles = "";
@@ -23,13 +23,12 @@ Accounts.registerLoginHandler(function (loginRequest) {
   catch (err) {
   }
 
-
   if (!loginRequest.saml || !loginRequest.credentialToken) {
     return undefined;
   }
 
   var loginResult = Accounts.saml.retrieveCredential(loginRequest.credentialToken);
-  console.log('login result: ', loginResult)
+  // console.log('login result: ', loginResult)
 
   if (loginResult && loginResult.profile && loginResult.profile.email) {
     var profile = loginResult.profile;
@@ -38,16 +37,15 @@ Accounts.registerLoginHandler(function (loginRequest) {
     var user = null;
     var generateUsers = false;
 
-    if (Meteor.settings) {
-      if (Meteor.settings['saml']) {
-        if (typeof Meteor.settings.saml[0].generateUsers === 'boolean') {
-          generateUsers = Meteor.settings.saml[0].generateUsers
-        }
-        if (Meteor.settings.saml[0]['authFields']) {
-          fname = Meteor.settings.saml[0].authFields['fname'];
-          dbField = Meteor.settings.saml[0].authFields['dbField'];
-          Accounts.saml.debugLog('saml_server.js', '38', 'Using fname and dbField from settings.json', false);
-        }
+    var settings = getSamlSettigs();
+    if (settings) {
+      if (typeof settings.generateUsers === 'boolean') {
+        generateUsers = settings.generateUsers
+      }
+      if (settings.authFields) {
+        fname = settings.authFields['fname'];
+        dbField = settings.authFields['dbField'];
+        Accounts.saml.debugLog('saml_server.js', '38', 'Using fname and dbField from settings.json', false);
       }
     }
     Accounts.saml.debugLog('saml_server.js', '42', 'fname: ' + fname + ', dbField: ' + dbField + ', First Query is Meteor.user.findOne({ ' + dbField + ' : ' + profile[fname] + ' })', false);
@@ -121,19 +119,19 @@ Accounts.registerLoginHandler(function (loginRequest) {
 Accounts.saml._loginResultForCredentialToken = {};
 
 Accounts.saml.hasCredential = function (credentialToken) {
-  console.log('server: has credential')
+  // console.log('server: has credential')
   return _.has(Accounts.saml._loginResultForCredentialToken, credentialToken);
 };
 
 Accounts.saml.retrieveCredential = function (credentialToken) {
-  console.log('server: retrieve credential')
+  // console.log('server: retrieve credential')
   let result = Accounts.saml._loginResultForCredentialToken[credentialToken];
   delete Accounts.saml._loginResultForCredentialToken[credentialToken];
   return result;
 };
 
 Accounts.saml.getDefaultUserQuery = function (profile) {
-  console.log('server: get default query')
+  // console.log('server: get default query')
   if (!profile) {
     throw new Error('cannot create default query without profile')
   }
@@ -161,12 +159,12 @@ Accounts.saml.getDefaultUserQuery = function (profile) {
 
 // Listen to incoming OAuth http requests
 WebApp.connectHandlers.use(function (req, res, next) {
-  console.log('server: express');
+  // console.log('server: express');
   // Need to create a Fiber since we're using synchronous http calls and nothing
   // else is wrapping this in a fiber automatically
 
   if (req.method === 'POST') {
-    console.log('POST request');
+    // console.log('POST request');
     let fullBody = '';
     req.on('data', function (chunk) {
       fullBody += chunk.toString();
@@ -179,7 +177,7 @@ WebApp.connectHandlers.use(function (req, res, next) {
       }).run();
     });
   } else {
-    console.log('GET request')
+    // console.log('GET request')
     Fiber(function () {
       middleware(req, res, next);
     }).run();
@@ -187,10 +185,11 @@ WebApp.connectHandlers.use(function (req, res, next) {
 });
 
 middleware = function (req, res, next) {
-  console.log('server: middleware');
+  // console.log('server: middleware');
   // Make sure to catch any exceptions because otherwise we'd crash
   // the runner
   try {
+    var settings = getSamlSettigs();
     let samlObject = samlUrlToObject(req.url);
     if (!samlObject || !samlObject.serviceName) {
       next();
@@ -201,7 +200,9 @@ middleware = function (req, res, next) {
       Accounts.saml.debugLog('saml_server.js', '142', 'Throw Missing SAML action', true);
       throw new Error('Missing SAML action');
     }
-    let service = _.find(Meteor.settings.saml, function (samlSetting) {
+    // console.log('settings: ', settings)
+
+    let service = _.find({ settings }, function (samlSetting) {
       return samlSetting.provider === samlObject.serviceName;
     });
 
@@ -217,11 +218,11 @@ middleware = function (req, res, next) {
     }
     switch (samlObject.actionName) {
       case 'authorize': {
-        console.log('server: middleware/authorize');
-        // service.callbackUrl = Meteor.absoluteUrl("_saml/validate/" + service.provider); //samlObject.credentialToken); //I added the id at end may not need it.
-        // TODO: un-hardcode this, potentially add credential token as seen above
-        if (Meteor.settings && Meteor.settings.saml && Meteor.settings.saml[0].issuer) {
-          service.callbackUrl = 'https://' + Meteor.settings.saml[0].issuer + '/_saml/validate/' + service.provider
+        // console.log('server: middleware/authorize');
+        // TODO: potentially add credential token to callback
+
+        if (settings && settings.issuer) {
+          service.callbackUrl = 'https://' + settings.issuer + '/_saml/validate/' + service.provider
         } else {
           Accounts.saml.debugLog('saml_server.js', '142', 'Issuer not set in SAML settings. Using ROOT_URL environment variable. If you are using localhost, this may cause issues with shibboleth.', false);
           service.callbackUrl = Meteor.absoluteUrl('/_saml/validate/' + service.provider);
@@ -244,13 +245,13 @@ middleware = function (req, res, next) {
         break;
       }
       case 'validate': {
-        console.log('server: middleware/validate');
+        // console.log('server: middleware/validate');
         _saml = new SAML(service);
         // decrypt response first, then validate the decrypted response
         let decryptedResponse = _saml.decryptSAMLResponse(req.body.SAMLResponse);
         _saml.validateResponse(decryptedResponse, req.body, function (err, profile) {
           if (err) {
-            console.log('validation error: ', err);
+            // console.log('validation error: ', err);
             Accounts.saml.debugLog(
               'saml_server.js',
               '175',
@@ -289,7 +290,7 @@ middleware = function (req, res, next) {
         break;
       }
       case 'logout': {
-        console.log('server: middleware/logout');
+        // console.log('server: middleware/logout');
         let userId = samlObject.credentialToken;
         const user = Meteor.users.findOne({ _id: userId });
         if (!user) {
@@ -319,18 +320,17 @@ middleware = function (req, res, next) {
         break;
       }
       case 'validateLogout': {
-        console.log('server: middleware/validateLogout');
+        // console.log('server: middleware/validateLogout');
         req.body = {
           SAMLResponse: decodeURIComponent(req.query.SAMLResponse.replace('SAMLResponse=', '')),
         };
         _saml = new SAML(service);
-        const deflatedResponse = req.body.SAMLResponse.split('&SigAlg')[0];
-        _saml.verifyLogoutResponse(deflatedResponse);
+        _saml.verifyLogoutResponse(req.body.SAMLResponse);
         res.end();
         break;
       }
       case 'metadata': {
-        console.log('server: middleware/metadata');
+        // console.log('server: middleware/metadata');
         _saml = new SAML(service);
         res.writeHead(200);
         res.write(_saml.generateServiceProviderMetadata());
@@ -385,3 +385,8 @@ var closePopup = function (res, err) {
 
   res.end(content, 'utf-8');
 };
+
+var getSamlSettigs = function () {
+  if (Meteor.settings && Meteor.settings.saml) return Meteor.settings.saml;
+  return null
+}

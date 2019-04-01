@@ -70,7 +70,7 @@ Meteor.loginWithSaml = function (options, callback) {
     } else {
       Accounts.saml.debugLog('saml_client.js', '69', 'error from initiateLogin: ' + error, true);
     }
-    console.log('*** calling Accounts.callLoginMethod from client ***')
+    // console.log('*** calling Accounts.callLoginMethod from client ***')
     Accounts.callLoginMethod({
       methodArguments: [{ saml: true, credentialToken: credentialToken }],
       userCallback: callback
@@ -86,7 +86,7 @@ Meteor.logoutWithSaml = function (options, callback) {
   }
   Meteor.logout(() => {
     try {
-      console.log(Meteor.settings.logoutLandingUrl || Meteor.absoluteUrl())
+      // console.log(Meteor.settings.logoutLandingUrl || Meteor.absoluteUrl())
       window.location.href = "_saml/logout/" + options.provider + '/' + userId
       callback(null, 'Logout successful')
     } catch (err) {
@@ -96,7 +96,7 @@ Meteor.logoutWithSaml = function (options, callback) {
 };
 
 Meteor.goToLogoutLanding = function (options, callback) {
-  console.log('here')
+  // console.log('here')
   if (Meteor.settings && Meteor.settings.saml && Meteor.settings.saml[0]) {
     window.location.href = Meteor.settings.saml[0].logoutLandingUrl || Meteor.absoluteUrl()
   } else {

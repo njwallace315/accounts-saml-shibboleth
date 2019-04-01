@@ -11,12 +11,12 @@ var xml2js = Npm.require('xml2js')
 var xmlbuilder = Npm.require('xmlbuilder');
 
 SAML = function (options) {
-  console.log('utils: constructor')
+  // console.log('utils: constructor')
   this.options = this.initialize(options);
 };
 
 SAML.prototype.initialize = function (options) {
-  console.log('utils: initialize')
+  // console.log('utils: initialize')
   if (!options) {
     options = {};
   }
@@ -52,29 +52,28 @@ SAML.prototype.initialize = function (options) {
   if (!options.identifierFormat) {
     options.identifierFormat = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
   }
-
   return options;
 };
 
 SAML.prototype.generateUniqueID = function () {
-  console.log('utils: generate unique ID')
+  // console.log('utils: generate unique ID')
   return crypto.randomBytes(10).toString('hex');
 };
 
 SAML.prototype.generateInstant = function () {
-  console.log('utils: generate instant')
+  // console.log('utils: generate instant')
   return new Date().toISOString();
 };
 
 SAML.prototype.signRequest = function (xml) {
-  console.log('utils: sign request')
+  // console.log('utils: sign request')
   var signer = crypto.createSign('RSA-SHA1');
   signer.update(xml);
   return signer.sign(this.options.spSamlKey, 'base64');
 }
 
 SAML.prototype.generateAuthorizeRequest = function (req) {
-  console.log('utils: generate authorize request')
+  // console.log('utils: generate authorize request')
   const self = this;
   var id = "_" + this.generateUniqueID();
   var instant = this.generateInstant();
@@ -121,7 +120,7 @@ SAML.prototype.generateAuthorizeRequest = function (req) {
 };
 
 SAML.prototype.generateLogoutRequest = function (req) {
-  console.log('utils: generate logout request')
+  // console.log('utils: generate logout request')
   var id = "_" + this.generateUniqueID();
   var instant = this.generateInstant();
 
@@ -140,7 +139,7 @@ SAML.prototype.generateLogoutRequest = function (req) {
       },
       'saml2:NameID': {
         '@Format': req.user.nameIDFormat,
-        '@NameQualifier': this.options.IdpMetadataUrl,
+        '@NameQualifier': this.options.idpMetadataUrl,
         '@SPNameQualifier': this.options.issuer,
         '@xmlns:saml2': "urn:oasis:names:tc:SAML:2.0:assertion",
         '#text': req.user.nameID
@@ -152,7 +151,7 @@ SAML.prototype.generateLogoutRequest = function (req) {
 }
 
 SAML.prototype.requestToUrl = function (request, operation, callback) {
-  console.log('utils: request to url')
+  // console.log('utils: request to url')
   var self = this;
   // TODO: investigate Buffer and see if it needs to be applied here
   zlib.deflateRaw(request, function (err, buffer) {
@@ -199,14 +198,14 @@ SAML.prototype.inflateResponse = function (response, callback) {
 }
 
 SAML.prototype.getAuthorizeUrl = function (req, callback) {
-  console.log('utils: get authorize url')
+  // console.log('utils: get authorize url')
   var request = this.generateAuthorizeRequest(req);
 
   this.requestToUrl(request, 'authorize', callback);
 };
 
 SAML.prototype.getLogoutUrl = function (req, callback) {
-  console.log('utils: get logout url')
+  // console.log('utils: get logout url')
   var request = this.generateLogoutRequest(req);
 
   this.requestToUrl(request, 'logout', callback);
@@ -224,9 +223,9 @@ SAML.prototype.certToPEM = function (cert) {
 };
 
 SAML.prototype.validateSignature = function (xml, currentNode) {
-  console.log('utils: validate signature')
+  // console.log('utils: validate signature')
   var self = this;
-  var cert = self.options.IdpCert
+  var cert = self.options.idpCert
   // var doc = new xmldom.DOMParser().parseFromString(xml);
   // var signature = xmlCrypto.xpath(doc, "//*[local-name(.)='Signature' and namespace-uri(.)='http://www.w3.org/2000/09/xmldsig#']")[0];
   var xpathSigQuery = ".//*[local-name(.)='Signature' and " +
@@ -251,7 +250,7 @@ SAML.prototype.validateSignature = function (xml, currentNode) {
 };
 
 SAML.prototype.getElement = function (parentElement, elementName) {
-  console.log('utils: get element')
+  // console.log('utils: get element')
   if (parentElement['saml:' + elementName]) {
     return parentElement['saml:' + elementName];
   } else if (parentElement['samlp:' + elementName]) {
@@ -265,37 +264,32 @@ SAML.prototype.getElement = function (parentElement, elementName) {
 }
 
 SAML.prototype.validateResponse = function (samlResponse, container, callback) {
-  console.log('utils: validate response')
+  // console.log('utils: validate response')
   var self = this;
   var xmlDomDoc = new xmldom.DOMParser().parseFromString(samlResponse);
   try {
     var fname = "";
-    if (Meteor.settings) {
-      if (Meteor.settings['saml']) {
-        if (Meteor.settings.saml[0]['authFields']) {
-          fname = Meteor.settings.saml[0].authFields['fname'];
-          Accounts.saml.debugLog('saml_util.js', '208', 'Loaded fname inside validate response for parsing saml.  fname: ' + fname, false);
-        }
-      }
+    if (this.options['authFields']) {
+      fname = this.options.authFields['fname'];
+      Accounts.saml.debugLog('saml_util.js', '208', 'Loaded fname inside validate response for parsing saml.  fname: ' + fname, false);
     }
 
     // Verify signature
-    if (self.options.IdpCert) {
+    if (self.options.idpCert) {
       try {
         var xml = Buffer.from(container.SAMLResponse, 'base64').toString('utf8');
-        var doc = new xmldom.DOMParser({
-        }).parseFromString(xml);
+        var doc = new xmldom.DOMParser({}).parseFromString(xml);
         if (!doc.hasOwnProperty('documentElement'))
           throw new Error('SAMLResponse is not valid base64-encoded XML');
         if (!self.validateSignature(xml, doc.documentElement)) {
-          throw new Error('Signature did not match IdpCert')
+          throw new Error('Signature did not match idpCert')
         }
       } catch (err) {
-        console.log('validate signature error: ', err)
+        // console.log('validate signature error: ', err)
         return callback(new Error('Invalid signature'), null);
       }
     } else {
-      return callback(new Error('IdpCert required in settings to validate signature'), null);
+      return callback(new Error('idpCert required in settings to validate signature'), null);
     }
     var assertion = xmlCrypto.xpath(xmlDomDoc, "//*[local-name(.)='Assertion']");
     if (assertion) {
@@ -347,7 +341,7 @@ SAML.prototype.validateResponse = function (samlResponse, container, callback) {
           }
           if (profileKey) {
             try {
-              console.log('assigning: ', profileKey, ' Value: ', item.firstChild.firstChild.nodeValue)
+              // console.log('assigning: ', profileKey, ' Value: ', item.firstChild.firstChild.nodeValue)
               profile[profileKey] = item.firstChild.firstChild.nodeValue;
             }
             catch (err) {
@@ -392,7 +386,7 @@ SAML.prototype.validateResponse = function (samlResponse, container, callback) {
 };
 
 SAML.prototype.decryptSAMLResponse = function (samlResponse) {
-  console.log('utils: decrypt saml response')
+  // console.log('utils: decrypt saml response')
   var self = this;
   var xml = new Buffer(samlResponse, 'base64').toString();
 
@@ -421,7 +415,7 @@ SAML.prototype.decryptSAMLResponse = function (samlResponse) {
 }
 
 SAML.prototype.decryptSAML = function (xml, options) {
-  console.log('utils: decrypt saml')
+  // console.log('utils: decrypt saml')
   Accounts.saml.debugLog('saml_utils.js', '353', 'decryptSAML', false);
 
   if (!options) {
@@ -475,12 +469,24 @@ SAML.prototype.decryptSAML = function (xml, options) {
 };
 
 SAML.prototype.verifyLogoutResponse = function (deflatedResponse) {
+  const self = this;
   var data = Buffer.from(deflatedResponse, "base64")
   zlib.inflateRaw(data, function (err, inflated) {
     if (err) {
-      // console.log('** error inflating response ** ', err)
+      console.log('** error inflating response ** ', err)
     }
-    var dom = new xmldom.DOMParser().parseFromString(inflated.toString());
+    var xml = inflated.toString('utf8');
+    console.log('xml: ', xml)
+    var doc = new xmldom.DOMParser({}).parseFromString(xml);
+    // if we have trouble validating signature we won't throw an error on logout
+    if (doc.hasOwnProperty('documentElement')) {
+      // if we can validate the signature and it's not properly signed then we have a problem
+      if (!self.validateSignature(xml, doc.documentElement)) {
+        throw new Error('Signature did not match idpCert')
+      }
+    } else {
+      console.log('*** document did not have that element ***')
+    }
     var parserConfig = {
       explicitRoot: true,
       explicitCharKey: true,
@@ -493,7 +499,6 @@ SAML.prototype.verifyLogoutResponse = function (deflatedResponse) {
       }
       var statusCode = doc.LogoutResponse.Status[0].StatusCode[0].$.Value;
       if (statusCode === "urn:oasis:names:tc:SAML:2.0:status:Success") {
-        // console.log('logout successful')
         return true;
       }
       throw new Error('Invalid status code, logout not successful')
@@ -503,7 +508,7 @@ SAML.prototype.verifyLogoutResponse = function (deflatedResponse) {
 };
 
 SAML.prototype.checkSAMLStatus = function (xmlDomDoc) {
-  console.log('utils: check saml status')
+  // console.log('utils: check saml status')
   var status = { StatusCodeValue: null, StatusMessage: null, StatusDetail: null }
 
   var statusCodeValueNode = xmlCrypto.xpath(xmlDomDoc, "//*[local-name(.)='StatusCode']")[0];
@@ -526,23 +531,14 @@ SAML.prototype.checkSAMLStatus = function (xmlDomDoc) {
 };
 
 SAML.prototype.generateServiceProviderMetadata = function () {
-  console.log('utils: generate metadata')
+  // console.log('utils: generate metadata')
   var issuer = this.options.issuer;
   var spSamlKey = this.options.spSamlKey;
   var spSamlCert = this.options.spSamlCert;
   var callbackUrl = this.options.callbackUrl
   var logoutCallbackUrl = this.options.logoutCallbackUrl
   var identifierFormat = this.options.identifierFormat;
-  if (Meteor.settings) {
-    if (Meteor.settings['saml']) {
-      if (Meteor.settings.saml[0]['authFields']) {
-        issuer = Meteor.settings.saml[0]['issuer'];
-        spSamlKey = Meteor.settings.saml[0]['spSamlKey']
-        spSamlCert = Meteor.settings.saml[0]['spSamlCert']
-        Accounts.saml.debugLog('saml_server.js', '38', 'fetching metadata info from settings', false);
-      }
-    }
-  }
+
   var metadata = {
     'EntityDescriptor': {
       '@xmlns': 'urn:oasis:names:tc:SAML:2.0:metadata',
