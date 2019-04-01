@@ -11,12 +11,10 @@ var xml2js = Npm.require('xml2js')
 var xmlbuilder = Npm.require('xmlbuilder');
 
 SAML = function (options) {
-  // console.log('utils: constructor')
   this.options = this.initialize(options);
 };
 
 SAML.prototype.initialize = function (options) {
-  // console.log('utils: initialize')
   if (!options) {
     options = {};
   }
@@ -56,24 +54,20 @@ SAML.prototype.initialize = function (options) {
 };
 
 SAML.prototype.generateUniqueID = function () {
-  // console.log('utils: generate unique ID')
   return crypto.randomBytes(10).toString('hex');
 };
 
 SAML.prototype.generateInstant = function () {
-  // console.log('utils: generate instant')
   return new Date().toISOString();
 };
 
 SAML.prototype.signRequest = function (xml) {
-  // console.log('utils: sign request')
   var signer = crypto.createSign('RSA-SHA1');
   signer.update(xml);
   return signer.sign(this.options.spSamlKey, 'base64');
 }
 
 SAML.prototype.generateAuthorizeRequest = function (req) {
-  // console.log('utils: generate authorize request')
   const self = this;
   var id = "_" + this.generateUniqueID();
   var instant = this.generateInstant();
@@ -120,7 +114,6 @@ SAML.prototype.generateAuthorizeRequest = function (req) {
 };
 
 SAML.prototype.generateLogoutRequest = function (req) {
-  // console.log('utils: generate logout request')
   var id = "_" + this.generateUniqueID();
   var instant = this.generateInstant();
 
@@ -151,9 +144,7 @@ SAML.prototype.generateLogoutRequest = function (req) {
 }
 
 SAML.prototype.requestToUrl = function (request, operation, callback) {
-  // console.log('utils: request to url')
   var self = this;
-  // TODO: investigate Buffer and see if it needs to be applied here
   zlib.deflateRaw(request, function (err, buffer) {
 
     if (err) {
@@ -198,14 +189,12 @@ SAML.prototype.inflateResponse = function (response, callback) {
 }
 
 SAML.prototype.getAuthorizeUrl = function (req, callback) {
-  // console.log('utils: get authorize url')
   var request = this.generateAuthorizeRequest(req);
 
   this.requestToUrl(request, 'authorize', callback);
 };
 
 SAML.prototype.getLogoutUrl = function (req, callback) {
-  // console.log('utils: get logout url')
   var request = this.generateLogoutRequest(req);
 
   this.requestToUrl(request, 'logout', callback);
@@ -223,17 +212,13 @@ SAML.prototype.certToPEM = function (cert) {
 };
 
 SAML.prototype.validateSignature = function (xml, currentNode) {
-  // console.log('utils: validate signature')
   var self = this;
   var cert = self.options.idpCert
-  // var doc = new xmldom.DOMParser().parseFromString(xml);
-  // var signature = xmlCrypto.xpath(doc, "//*[local-name(.)='Signature' and namespace-uri(.)='http://www.w3.org/2000/09/xmldsig#']")[0];
   var xpathSigQuery = ".//*[local-name(.)='Signature' and " +
     "namespace-uri(.)='http://www.w3.org/2000/09/xmldsig#']";
   var signatures = xmlCrypto.xpath(currentNode, xpathSigQuery);
-  // This function is expecting to validate exactly one signature, so if we find more or fewer
-  //   than that, reject.
-  if (signatures.length < 1) throw new Error('Could not find signature')
+  // This function is expecting to validate exactly one signature, so reject if we find more or fewer
+  if (signatures.length !== 1) throw new Error('Could not find signature')
   var signature = signatures[0];
 
   var sig = new xmlCrypto.SignedXml();
@@ -250,7 +235,6 @@ SAML.prototype.validateSignature = function (xml, currentNode) {
 };
 
 SAML.prototype.getElement = function (parentElement, elementName) {
-  // console.log('utils: get element')
   if (parentElement['saml:' + elementName]) {
     return parentElement['saml:' + elementName];
   } else if (parentElement['samlp:' + elementName]) {
@@ -264,14 +248,13 @@ SAML.prototype.getElement = function (parentElement, elementName) {
 }
 
 SAML.prototype.validateResponse = function (samlResponse, container, callback) {
-  // console.log('utils: validate response')
   var self = this;
   var xmlDomDoc = new xmldom.DOMParser().parseFromString(samlResponse);
   try {
     var fname = "";
     if (this.options['authFields']) {
       fname = this.options.authFields['fname'];
-      Accounts.saml.debugLog('saml_util.js', '208', 'Loaded fname inside validate response for parsing saml.  fname: ' + fname, false);
+      Accounts.saml.debugLog('saml_util.js', '258', 'Loaded fname inside validate response for parsing saml.  fname: ' + fname, false);
     }
 
     // Verify signature
@@ -285,7 +268,6 @@ SAML.prototype.validateResponse = function (samlResponse, container, callback) {
           throw new Error('Signature did not match idpCert')
         }
       } catch (err) {
-        // console.log('validate signature error: ', err)
         return callback(new Error('Invalid signature'), null);
       }
     } else {
@@ -294,9 +276,6 @@ SAML.prototype.validateResponse = function (samlResponse, container, callback) {
     var assertion = xmlCrypto.xpath(xmlDomDoc, "//*[local-name(.)='Assertion']");
     if (assertion) {
       profile = {};
-
-      var conditions = xmlCrypto.xpath(xmlDomDoc, "//*[local-name(.)='Assertion']/*[local-name(.)='Subject']");
-      var authnStatement = xmlCrypto.xpath(xmlDomDoc, "//*[local-name(.)='Assertion']/*[local-name(.)='AuthnStatement']");
 
       //Get InResponseTo
       var inResponseTo = xmlCrypto.xpath(xmlDomDoc, "//*[local-name(.)='SubjectConfirmationData']/@InResponseTo");
@@ -311,7 +290,6 @@ SAML.prototype.validateResponse = function (samlResponse, container, callback) {
       }
 
       //Get NameID
-      //sample...
       var nameID = xmlCrypto.xpath(xmlDomDoc, "//*[local-name(.)='Assertion']/*[local-name(.)='Subject']/*[local-name(.)='NameID']/text()");
       if (nameID) {
         profile.nameID = nameID[0].nodeValue;
@@ -336,16 +314,15 @@ SAML.prototype.validateResponse = function (samlResponse, container, callback) {
               }
             }
             catch (err) {
-              Accounts.saml.debugLog('saml_utils.js', '267', 'Error inside item.attributes for loop', true);
+              Accounts.saml.debugLog('saml_utils.js', '317', 'Error inside item.attributes for loop', true);
             }
           }
           if (profileKey) {
             try {
-              // console.log('assigning: ', profileKey, ' Value: ', item.firstChild.firstChild.nodeValue)
               profile[profileKey] = item.firstChild.firstChild.nodeValue;
             }
             catch (err) {
-              Accounts.saml.debugLog('saml_utils.js', '275', 'Error setting the attribute ' + profileKey + ' on the profile.', true);
+              Accounts.saml.debugLog('saml_utils.js', '325', 'Error setting the attribute ' + profileKey + ' on the profile.', true);
             }
           }
         });
@@ -367,10 +344,9 @@ SAML.prototype.validateResponse = function (samlResponse, container, callback) {
        * eduPersonalName seems to be a remnant of shibboleth 1.x
        * "it is commonly thought of as the global equivalent of a "netid""
        * it may be that we don't want this assigned to email
-       * TODO: see if netid is the most appropriate place to put the eduPersonPrincipleName
        */
       if (!profile.email && profile['eduPersonPrincipalName']) {
-        Accounts.saml.debugLog('saml_utils.js', '305', 'Adding profile.email as eduPersonPrincipalName', false);
+        Accounts.saml.debugLog('saml_utils.js', '349', 'Adding profile.email as eduPersonPrincipalName', false);
         profile['netid'] = profile['eduPersonPrincipalName'];
       }
       callback(null, profile);
@@ -379,14 +355,13 @@ SAML.prototype.validateResponse = function (samlResponse, container, callback) {
     }
   }
   catch (error) {
-    Accounts.saml.debugLog('saml_utils.js', '318', 'Unknown SAML response message.. Error: ' + error, true);
+    Accounts.saml.debugLog('saml_utils.js', '358', 'Unknown SAML response message.. Error: ' + error, true);
 
     return callback(new Error('Unknown SAML response message'), null);
   }
 };
 
 SAML.prototype.decryptSAMLResponse = function (samlResponse) {
-  // console.log('utils: decrypt saml response')
   var self = this;
   var xml = new Buffer(samlResponse, 'base64').toString();
 
@@ -404,19 +379,18 @@ SAML.prototype.decryptSAMLResponse = function (samlResponse) {
       return null;
     }
     else {
-      Accounts.saml.debugLog('saml_utils.js', '342', 'decryptSAMLResponse: ' + resultObj.result, false);
+      Accounts.saml.debugLog('saml_utils.js', '382', 'decryptSAMLResponse: ' + resultObj.result, false);
       return resultObj.result;
     }
   }
   catch (error) {
-    Accounts.saml.debugLog('saml_utils.js', '347', 'error: ' + error, true);
+    Accounts.saml.debugLog('saml_utils.js', '387', 'error: ' + error, true);
     return null;
   }
 }
 
 SAML.prototype.decryptSAML = function (xml, options) {
-  // console.log('utils: decrypt saml')
-  Accounts.saml.debugLog('saml_utils.js', '353', 'decryptSAML', false);
+  Accounts.saml.debugLog('saml_utils.js', '393', 'decryptSAML', false);
 
   if (!options) {
     return {
@@ -459,7 +433,7 @@ SAML.prototype.decryptSAML = function (xml, options) {
   decipher.setAutoPadding(auto_padding = false);
   decrypted = decipher.update(encrypted.slice(16), 'base64', 'utf8') + decipher.final('utf8');
 
-  //remove anything after </saml2:Assertion>  //test shib had a few binary characters after this..
+  //remove anything after </saml2:Assertion>
   decrypted = decrypted.substring(0, decrypted.indexOf('</saml2:Assertion>')) + '</saml2:Assertion>';
 
   return {
@@ -473,20 +447,8 @@ SAML.prototype.verifyLogoutResponse = function (deflatedResponse) {
   var data = Buffer.from(deflatedResponse, "base64")
   zlib.inflateRaw(data, function (err, inflated) {
     if (err) {
-      console.log('** error inflating response ** ', err)
     }
-    var xml = inflated.toString('utf8');
-    console.log('xml: ', xml)
-    var doc = new xmldom.DOMParser({}).parseFromString(xml);
     // if we have trouble validating signature we won't throw an error on logout
-    if (doc.hasOwnProperty('documentElement')) {
-      // if we can validate the signature and it's not properly signed then we have a problem
-      if (!self.validateSignature(xml, doc.documentElement)) {
-        throw new Error('Signature did not match idpCert')
-      }
-    } else {
-      console.log('*** document did not have that element ***')
-    }
     var parserConfig = {
       explicitRoot: true,
       explicitCharKey: true,
@@ -508,7 +470,6 @@ SAML.prototype.verifyLogoutResponse = function (deflatedResponse) {
 };
 
 SAML.prototype.checkSAMLStatus = function (xmlDomDoc) {
-  // console.log('utils: check saml status')
   var status = { StatusCodeValue: null, StatusMessage: null, StatusDetail: null }
 
   var statusCodeValueNode = xmlCrypto.xpath(xmlDomDoc, "//*[local-name(.)='StatusCode']")[0];
@@ -525,13 +486,10 @@ SAML.prototype.checkSAMLStatus = function (xmlDomDoc) {
   if (statusDetailNode) {
     status.StatusDetail = statusDetailNode.childNodes[0].nodeValue;
   }
-  //status.StatusMessage = xmlCrypto.xpath(xmlDomDoc, "//*[local-name(.)='StatusMessage']")[0].childNodes[0].nodeValue;
-  //status.StatusDetail = xmlCrypto.xpath(xmlDomDoc, "//*[local-name(.)='StatusDetail']/*[local-name(.)='Cause']")[0].childNodes[0].nodeValue;
   return status;
 };
 
 SAML.prototype.generateServiceProviderMetadata = function () {
-  // console.log('utils: generate metadata')
   var issuer = this.options.issuer;
   var spSamlKey = this.options.spSamlKey;
   var spSamlCert = this.options.spSamlCert;

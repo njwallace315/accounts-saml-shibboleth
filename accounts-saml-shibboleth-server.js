@@ -10,15 +10,13 @@ let xmldom = Npm.require('xmldom');
 RoutePolicy.declare('/_saml/', 'network');
 
 Accounts.registerLoginHandler(function (loginRequest) {
-  // console.log('server: meteor login handler')
-  // console.log('loginRequest: ', loginRequest)
   try {
     var myKeys = Object.keys(profile);
     var concatfiles = "";
     for (var k = 0; k < myKeys.length; k++) {
       concatfiles = concatfiles + ", " + myKeys[k] + ": " + profile[myKeys[k]];
     }
-    Accounts.saml.debugLog('saml_server.js', '16', 'Profile Fields: ' + concatfiles, false);
+    Accounts.saml.debugLog('saml_server.js', '19', 'Profile Fields: ' + concatfiles, false);
   }
   catch (err) {
   }
@@ -28,7 +26,6 @@ Accounts.registerLoginHandler(function (loginRequest) {
   }
 
   var loginResult = Accounts.saml.retrieveCredential(loginRequest.credentialToken);
-  // console.log('login result: ', loginResult)
 
   if (loginResult && loginResult.profile && loginResult.profile.email) {
     var profile = loginResult.profile;
@@ -45,20 +42,20 @@ Accounts.registerLoginHandler(function (loginRequest) {
       if (settings.authFields) {
         fname = settings.authFields['fname'];
         dbField = settings.authFields['dbField'];
-        Accounts.saml.debugLog('saml_server.js', '38', 'Using fname and dbField from settings.json', false);
+        Accounts.saml.debugLog('saml_server.js', '45', 'Using fname and dbField from settings.json', false);
       }
     }
-    Accounts.saml.debugLog('saml_server.js', '42', 'fname: ' + fname + ', dbField: ' + dbField + ', First Query is Meteor.user.findOne({ ' + dbField + ' : ' + profile[fname] + ' })', false);
 
     // Query with settings authfields
     if (dbField && fname) {
+      Accounts.saml.debugLog('saml_server.js', '51', 'fname: ' + fname + ', dbField: ' + dbField + ', First Query is Meteor.user.findOne({ ' + dbField + ' : profile[' + fname + '] })', false);
       user = Meteor.users.findOne({ dbField: profile[fname] })
     }
     if (!user) {
       // try some default lookups
       var query = Accounts.saml.getDefaultUserQuery(profile)
       user = Meteor.users.findOne(query)
-      Accounts.saml.debugLog('saml_server.js', '60', 'User not found from authFields attribute in settings.json.  Using generated default query: ' + query + ', to find user.', false);
+      Accounts.saml.debugLog('saml_server.js', '58', 'User not found from authFields attribute in settings.json.  Using generated default query: ' + query + ', to find user.', false);
     }
 
     if (!user) {
@@ -87,22 +84,21 @@ Accounts.registerLoginHandler(function (loginRequest) {
           throw new Error('Failed to find user after generation')
         }
       } else {
-        Accounts.saml.debugLog('saml_server.js', '64', 'Could not find an existing user with credentials, generate users not set to true in settings', true);
+        Accounts.saml.debugLog('saml_server.js', '87', 'Could not find an existing user with credentials, generate users not set to true in settings', true);
         throw new Error('User not found with data provided by login response.')
       }
     }
     else {
-      Accounts.saml.debugLog('saml_server.js', '69', 'User was found using query Meteor.user.findOne({ ' + dbField + ' : ' + profile[fname] + ' })', false);
+      Accounts.saml.debugLog('saml_server.js', '92', 'User found', false);
     }
 
     var stampedToken = Accounts._generateStampedLoginToken();
 
-    // TODO: you know better than to use the user's profile
     Meteor.users.update(user,
       { $set: { 'nameIDFormat': profile.nameIDFormat, 'nameID': profile.nameID } }
     );
 
-    Accounts.saml.debugLog('saml_server.js', '79', 'registerLoginHandler user._id, stampedToken: ' + user._id + ',' + stampedToken.token, false);
+    Accounts.saml.debugLog('saml_server.js', '101', 'registerLoginHandler user._id, stampedToken: ' + user._id + ',' + stampedToken.token, false);
 
     //sending token along with the userId
     return {
@@ -111,7 +107,7 @@ Accounts.registerLoginHandler(function (loginRequest) {
     };
 
   }
-  Accounts.saml.debugLog('saml_server.js', '88', 'Throw SAML Profile did not contain an email address', true);
+  Accounts.saml.debugLog('saml_server.js', '110', 'Throw SAML Profile did not contain an email address', true);
   throw new Error("SAML Profile did not contain an email address");
 
 });
@@ -119,19 +115,16 @@ Accounts.registerLoginHandler(function (loginRequest) {
 Accounts.saml._loginResultForCredentialToken = {};
 
 Accounts.saml.hasCredential = function (credentialToken) {
-  // console.log('server: has credential')
   return _.has(Accounts.saml._loginResultForCredentialToken, credentialToken);
 };
 
 Accounts.saml.retrieveCredential = function (credentialToken) {
-  // console.log('server: retrieve credential')
   let result = Accounts.saml._loginResultForCredentialToken[credentialToken];
   delete Accounts.saml._loginResultForCredentialToken[credentialToken];
   return result;
 };
 
 Accounts.saml.getDefaultUserQuery = function (profile) {
-  // console.log('server: get default query')
   if (!profile) {
     throw new Error('cannot create default query without profile')
   }
@@ -159,12 +152,10 @@ Accounts.saml.getDefaultUserQuery = function (profile) {
 
 // Listen to incoming OAuth http requests
 WebApp.connectHandlers.use(function (req, res, next) {
-  // console.log('server: express');
   // Need to create a Fiber since we're using synchronous http calls and nothing
   // else is wrapping this in a fiber automatically
 
   if (req.method === 'POST') {
-    // console.log('POST request');
     let fullBody = '';
     req.on('data', function (chunk) {
       fullBody += chunk.toString();
@@ -177,7 +168,6 @@ WebApp.connectHandlers.use(function (req, res, next) {
       }).run();
     });
   } else {
-    // console.log('GET request')
     Fiber(function () {
       middleware(req, res, next);
     }).run();
@@ -185,11 +175,19 @@ WebApp.connectHandlers.use(function (req, res, next) {
 });
 
 middleware = function (req, res, next) {
-  // console.log('server: middleware');
   // Make sure to catch any exceptions because otherwise we'd crash
   // the runner
   try {
     var settings = getSamlSettigs();
+    if (!settings) {
+      Accounts.saml.debugLog(
+        'saml_server.js',
+        '183',
+        'Could not find Meteor.settings.saml. Check your settings file.',
+        true
+      );
+      throw new Error('Missing config settings');
+    }
     let samlObject = samlUrlToObject(req.url);
     if (!samlObject || !samlObject.serviceName) {
       next();
@@ -197,10 +195,9 @@ middleware = function (req, res, next) {
     }
 
     if (!samlObject.actionName) {
-      Accounts.saml.debugLog('saml_server.js', '142', 'Throw Missing SAML action', true);
+      Accounts.saml.debugLog('saml_server.js', '198', 'Throw Missing SAML action', true);
       throw new Error('Missing SAML action');
     }
-    // console.log('settings: ', settings)
 
     let service = _.find({ settings }, function (samlSetting) {
       return samlSetting.provider === samlObject.serviceName;
@@ -210,7 +207,7 @@ middleware = function (req, res, next) {
     if (!service) {
       Accounts.saml.debugLog(
         'saml_server.js',
-        '152',
+        '208',
         'Throw Unexpected SAML service ' + samlObject.serviceName,
         true
       );
@@ -218,13 +215,10 @@ middleware = function (req, res, next) {
     }
     switch (samlObject.actionName) {
       case 'authorize': {
-        // console.log('server: middleware/authorize');
-        // TODO: potentially add credential token to callback
-
         if (settings && settings.issuer) {
           service.callbackUrl = 'https://' + settings.issuer + '/_saml/validate/' + service.provider
         } else {
-          Accounts.saml.debugLog('saml_server.js', '142', 'Issuer not set in SAML settings. Using ROOT_URL environment variable. If you are using localhost, this may cause issues with shibboleth.', false);
+          Accounts.saml.debugLog('saml_server.js', '221', 'Issuer not set in SAML settings. Using ROOT_URL environment variable. If you are using localhost, this may cause issues with shibboleth.', false);
           service.callbackUrl = Meteor.absoluteUrl('/_saml/validate/' + service.provider);
         }
         service.id = samlObject.credentialToken;
@@ -233,7 +227,7 @@ middleware = function (req, res, next) {
           if (err) {
             Accounts.saml.debugLog(
               'saml_server.js',
-              '163',
+              '230',
               'Throw Unable to generate authorize url',
               true
             );
@@ -245,16 +239,14 @@ middleware = function (req, res, next) {
         break;
       }
       case 'validate': {
-        // console.log('server: middleware/validate');
         _saml = new SAML(service);
         // decrypt response first, then validate the decrypted response
         let decryptedResponse = _saml.decryptSAMLResponse(req.body.SAMLResponse);
         _saml.validateResponse(decryptedResponse, req.body, function (err, profile) {
           if (err) {
-            // console.log('validation error: ', err);
             Accounts.saml.debugLog(
               'saml_server.js',
-              '175',
+              '249',
               'Throw Unable to validate response url',
               true
             );
@@ -266,7 +258,7 @@ middleware = function (req, res, next) {
           if (!credentialToken) {
             Accounts.saml.debugLog(
               'saml_server.js',
-              '181',
+              '261',
               'Throw Unable to determine credentialToken',
               true
             );
@@ -280,7 +272,7 @@ middleware = function (req, res, next) {
 
           Accounts.saml.debugLog(
             'saml_server.js',
-            '190',
+            '275',
             'closePopup being called.  CredentialToken: ' + credentialToken,
             false
           );
@@ -290,13 +282,12 @@ middleware = function (req, res, next) {
         break;
       }
       case 'logout': {
-        // console.log('server: middleware/logout');
         let userId = samlObject.credentialToken;
         const user = Meteor.users.findOne({ _id: userId });
         if (!user) {
           Accounts.saml.debugLog(
             'saml_server.js',
-            '195',
+            '290',
             'No logged in user ' + samlObject.actionName,
             true
           );
@@ -308,7 +299,7 @@ middleware = function (req, res, next) {
           if (err) {
             Accounts.saml.debugLog(
               'saml_server.js',
-              '163',
+              '302',
               'Throw Unable to generate logout url',
               true
             );
@@ -320,7 +311,6 @@ middleware = function (req, res, next) {
         break;
       }
       case 'validateLogout': {
-        // console.log('server: middleware/validateLogout');
         req.body = {
           SAMLResponse: decodeURIComponent(req.query.SAMLResponse.replace('SAMLResponse=', '')),
         };
@@ -330,7 +320,6 @@ middleware = function (req, res, next) {
         break;
       }
       case 'metadata': {
-        // console.log('server: middleware/metadata');
         _saml = new SAML(service);
         res.writeHead(200);
         res.write(_saml.generateServiceProviderMetadata());
@@ -338,19 +327,16 @@ middleware = function (req, res, next) {
         break;
       }
       default: {
-        // console.log('there was an error here: ', err)
         closePopup(res, err);
       }
     }
   } catch (err) {
-    // console.log('there was an error here: ', err)
     closePopup(res, err);
   }
 };
 
 var samlUrlToObject = function (url) {
-  // console.log('server: saml to object')
-  Accounts.saml.debugLog('saml_server.js', '181', "samlUtrlToObject: " + url, false);
+  Accounts.saml.debugLog('saml_server.js', '339', "samlUtrlToObject: " + url, false);
   // req.url will be "/_saml/<action>/<service name>/<credentialToken>"
   if (!url) return null;
 
@@ -361,8 +347,7 @@ var samlUrlToObject = function (url) {
   if (splitPath[1] !== '_saml') return null;
 
   // logout response url has a query string that can get mixed up in the service name
-  // the logout response will not have a credential token. 
-  // If there is a case where it does, that attribute will need to be split as well
+  // the logout response should not have a credential token.
   return {
     actionName: splitPath[2],
     serviceName: splitPath[3].split('?')[0],
@@ -371,12 +356,11 @@ var samlUrlToObject = function (url) {
 };
 
 var closePopup = function (res, err) {
-  // console.log('server: close popup')
   res.writeHead(200, { 'Content-Type': 'text/html' });
 
   let content = '<html><head><script>window.close()</script></head></html>';
   if (err) {
-    Accounts.saml.debugLog('saml_server.js', '228', 'Throw error: ' + err.reason, true);
+    Accounts.saml.debugLog('saml_server.js', '363', 'Throw error: ' + err.reason, true);
     content =
       '<html><body><h2>Sorry, an error occured</h2><div>' +
       err +

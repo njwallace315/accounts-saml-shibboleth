@@ -1,10 +1,6 @@
 # meteor-accounts-shibboleth
 > A meteor accounts package for SAML/Shibboleth.
 
-<!-- [![NPM Version][npm-image]][npm-url]
-[![Build Status][travis-image]][travis-url]
-[![Downloads Stats][npm-downloads]][npm-url] -->
-
 This package configures a service provider to connect the meteor accounts package with a shibboleth Idp. 
 It sends SSO and SLO requests with an HTTP-Redirect binding. 
 It currently works when using [samltest.id](https://samltest.id/) as the identity provider. 
@@ -37,7 +33,7 @@ The follwing attributes must be present in meteor settings for this package to w
 - `generateUsers` - (Boolean) When true, users who authenticate but do not have an entry in the Meteor Users collection will have an entry created.
 - `authFields` - (Object) Contains a dbfield and fname that are used to customize the how the users colleciton is queried to find the authenticated user.
 - `authFields.dbfield` - Key value of the query that matches a path on a meteor users object.
-- `fname` - Key value that matches a path on the profile object constructed from the login response. A more detailed explination can be found in the 'notes' section below.
+- `authfields.fname` - Key value that matches a path on the profile object constructed from the login response. A more detailed explination can be found in the 'notes' section below.
 
 ## Usage example
 
@@ -129,6 +125,8 @@ With this you should be able to use the login and logout buttons to authenticate
 * If you run into any issues [samltest's Idp logs](https://samltest.id/logs/idp.log) are a good place to start troubbleshooting.
 
 * It is only necessary to include Meteor's accounts-password package if `generateUsers` is set to true.
+
+* I have not yet implemented signature validation on logout, although the signatures are validated when authenticating a user.
   
 
 ## Credits
